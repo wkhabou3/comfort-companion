@@ -59,6 +59,8 @@ void setup() {
 
   listDir(SD, "/", 0);
 
+  delay(1000);
+
   Serial.println("Playing 440Hz tone for 2000ms...");
   playTone(440, 2000);
   Serial.println("Finished playing tone.");
@@ -67,10 +69,12 @@ void setup() {
   char *fileToPlay = "/test.wav";
   Serial.print("Playing file from SD card: ");
   Serial.println(fileToPlay);
-
   playWav(fileToPlay);
-
   Serial.println("Playback finished.");
+
+  Serial.println("One more tone...");
+  playTone(440, 2000);
+
   Serial.println("All tests passed!\n");
 }
 

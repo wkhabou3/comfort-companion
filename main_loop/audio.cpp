@@ -12,8 +12,8 @@ static i2s_chan_handle_t tx_chan;
 
 // Separate volume variables for pure sine tones and stored audio playback
 // Tone volume should be between 0 and 1
-float toneVolume = 0.05;
-float playbackVolume = 0.3;
+float toneVolume = 0.5;
+float playbackVolume = 1;
 
 // Allocate memory for sine lookup table
 int16_t sinTable[SIN_TABLE_SIZE];
@@ -26,6 +26,10 @@ void initSinTable() {
 }
 
 void setupI2S(uint32_t sampleRate, uint16_t numChannels) {
+  // Initialize SD pin, set low to eliminate noise on startup
+  pinMode(AMP_SD, OUTPUT);
+  digitalWrite(AMP_SD, LOW);
+
   // initialize I2S channel
   i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
   i2s_new_channel(&chan_cfg, &tx_chan, NULL);
@@ -52,6 +56,18 @@ void setupI2S(uint32_t sampleRate, uint16_t numChannels) {
   };
   i2s_channel_init_std_mode(tx_chan, &std_cfg);
   i2s_channel_enable(tx_chan);
+
+  // Send silence to stabilize audio stream
+  int16_t silence[256] = {0};
+  size_t bytes_written;
+
+  for (int i = 0; i < 10; i++) {
+    i2s_channel_write(tx_chan, silence, sizeof(silence), &bytes_written, portMAX_DELAY);
+  }
+
+  // Enable amp
+  delay(50);
+  digitalWrite(AMP_SD, HIGH);
 }
 
 void playTone(float frequency, int duration) {
@@ -66,6 +82,8 @@ void playTone(float frequency, int duration) {
   // Calculate number of samples required to reach duration
   uint32_t totalSamples = (SAMPLE_RATE * duration) / 1000;
   uint32_t samplesGenerated = 0;
+
+  size_t bytesWritten;
 
   while (samplesGenerated < totalSamples) {
     // Fill buffer
@@ -88,11 +106,17 @@ void playTone(float frequency, int duration) {
     }
 
     // Write buffer values to amp
-    size_t bytes_written;
-    i2s_channel_write(tx_chan, buffer, sizeof(buffer), &bytes_written, portMAX_DELAY);
+    i2s_channel_write(tx_chan, buffer, sizeof(buffer), &bytesWritten, portMAX_DELAY);
 
     // Increment number of samples generated
     samplesGenerated += DMA_BUF_LEN;
+  }
+
+  // At this point, tone genersation has finished. Flush the buffer
+  int16_t silence[DMA_BUF_LEN] = {0}; // stereo silence
+
+  for (int i = 0; i < 8; i++) {
+    i2s_channel_write(tx_chan, silence, sizeof(silence), &bytesWritten, portMAX_DELAY);
   }
 }
 

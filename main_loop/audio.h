@@ -19,6 +19,10 @@ Header file for audio functionality, including pinouts, constants, and function 
 #define I2S_LRC  GPIO_NUM_23
 #define I2S_DOUT GPIO_NUM_10
 
+// SD pin (set low to mute amp)
+// Use during boot and during low-power
+#define AMP_SD   GPIO_NUM_3
+
 // Maximum number of samples to write to the DMA buffer at a time
 #define DMA_BUF_LEN 512
 
