@@ -10,13 +10,23 @@ Implementation of all audio functionality, including:
 
 static i2s_chan_handle_t tx_chan;
 
+int16_t buffer[DMA_BUF_LEN * 2];
+
 // Separate volume variables for pure sine tones and stored audio playback
 // Tone volume should be between 0 and 1
-float toneVolume = 0.5;
-float playbackVolume = 1;
+float toneVolume = 0.1;
+float playbackVolume = 0.5;
+
+// set flag whenever audio playback is interrupted
+volatile bool audioAbort = false;
 
 // Allocate memory for sine lookup table
 int16_t sinTable[SIN_TABLE_SIZE];
+
+// Button interrupt
+void IRAM_ATTR stopAudioISR() {
+    audioAbort = true;
+}
 
 void initSinTable() {
   for (int i = 0; i < SIN_TABLE_SIZE; i++) {
@@ -58,12 +68,7 @@ void setupI2S(uint32_t sampleRate, uint16_t numChannels) {
   i2s_channel_enable(tx_chan);
 
   // Send silence to stabilize audio stream
-  int16_t silence[256] = {0};
-  size_t bytes_written;
-
-  for (int i = 0; i < 10; i++) {
-    i2s_channel_write(tx_chan, silence, sizeof(silence), &bytes_written, portMAX_DELAY);
-  }
+  flushAudio();
 
   // Enable amp
   delay(50);
@@ -71,9 +76,8 @@ void setupI2S(uint32_t sampleRate, uint16_t numChannels) {
 }
 
 void playTone(float frequency, int duration) {
-  // Not pretty, but we double the length of the buffer to account for stereo I2S channel
-  // Otherwise, we would have to reconfigure the I2S channel which would be less ideal.
-  int16_t buffer[DMA_BUF_LEN * 2];
+  // reset abort flag before continuing
+  audioAbort = false;
 
   // Track phase and  calculate step (which index of sine table to access at each for loop iteration)
   float phase = 0.0;
@@ -85,9 +89,13 @@ void playTone(float frequency, int duration) {
 
   size_t bytesWritten;
 
-  while (samplesGenerated < totalSamples) {
+  while (samplesGenerated < totalSamples && !audioAbort) {
     // Fill buffer
     for (int i = 0; i < DMA_BUF_LEN; i++) {
+      // Check abort flag
+      if (audioAbort) {
+        break;
+      }
       // Cast current phase to use as index for sine table
       int index = (int) phase;
       int16_t sample = sinTable[index];
@@ -112,15 +120,14 @@ void playTone(float frequency, int duration) {
     samplesGenerated += DMA_BUF_LEN;
   }
 
-  // At this point, tone genersation has finished. Flush the buffer
-  int16_t silence[DMA_BUF_LEN] = {0}; // stereo silence
-
-  for (int i = 0; i < 8; i++) {
-    i2s_channel_write(tx_chan, silence, sizeof(silence), &bytesWritten, portMAX_DELAY);
-  }
+  // At this point, tone generation has finished. Flush the buffer
+  flushAudio();
 }
 
 void playWav(const char *filename) {
+  // reset abort flag before continuing
+  audioAbort = false;
+
   // Attempt to open file. Return if failure
   File file = SD.open(filename);
   if (!file) {
@@ -141,14 +148,17 @@ void playWav(const char *filename) {
     Serial.println("Only 16-bit WAV supported");
     return;
   }
-
-  int16_t buffer[DMA_BUF_LEN * 2];  // stereo
+  
   size_t bytesWritten;
 
-  // Continue while there are bytes to read from file
+  // Continue while there are bytes to read from file. also check abort flag
   while (file.available()) {
+    if (audioAbort) {
+      break;
+    }
+
     // Shorten buffer if number of bytes available is less than buffer size
-    int bytesToRead = min((int)file.available(), (int)sizeof(buffer));
+    int bytesToRead = min((int) file.available(), (int) sizeof(buffer));
 
     // Read from file and write to buffer
     int bytesRead = file.read((uint8_t*)buffer, bytesToRead);
@@ -158,26 +168,33 @@ void playWav(const char *filename) {
 
     // Re-iterate through buffer to scale by volume and sanitize values
     for (int i = 0; i < samples; i++) {
-      buffer[i] = (int16_t)(buffer[i] * playbackVolume);
-      // Prevent overflow (REDO THIS)
-      if (buffer[i] > 32767) {
-        buffer[i] = 32767;
+      int32_t sample = buffer[i] * playbackVolume;
+      // Prevent overflow
+      if (sample > 32767) {
+        sample = 32767;
       }
-      if (buffer[i] < -32768) {
-        buffer[i] = -32768;
+      if (sample < -32768) {
+        sample = -32768;
       }
+      buffer[i] = (int16_t) sample;
     }
 
     // Write to amp
     i2s_channel_write(tx_chan, buffer, bytesRead, &bytesWritten, portMAX_DELAY);
   }
 
-  // At this point, audio playback has finished. Flush the buffer
-  int16_t silence[DMA_BUF_LEN * 2] = {0}; // stereo silence
+  // Stop playback and close file
+  flushAudio();
+  file.close();
+}
+
+void flushAudio()
+{
+  // Overwrite buffer with zeros
+  int16_t silence[DMA_BUF_LEN * 2] = {0};
+  size_t bytesWritten;
 
   for (int i = 0; i < 8; i++) {
     i2s_channel_write(tx_chan, silence, sizeof(silence), &bytesWritten, portMAX_DELAY);
   }
-
-  file.close();
 }

@@ -9,6 +9,8 @@ Tasks:
 
 #include "../audio.cpp"   // Ugly but Arduino compiler doesn't see the cpp file otherwise
 
+#define BUTTON_PIN GPIO_NUM_2 // Button pin to test interrupt behavior
+
 SPIClass sdSPI(FSPI);
 
 // List all dirs and files stored in microSD card, including dir name, filename, and size (bytes).
@@ -38,6 +40,10 @@ void listDir(fs::FS &fs, const char * dirname, uint8_t levels) {
 void setup() {
   Serial.begin(115200);
   delay(2000);
+
+  // Configure button interrupt
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), stopAudioISR, FALLING);
 
   Serial.println("Begin audio test.");
 

@@ -49,6 +49,9 @@ struct WAVHeader {
   uint32_t dataSize;
 };
 
+// Button interrupt
+void IRAM_ATTR stopAudioISR();
+
 /*
 Initialize sine lookup table.
 
@@ -81,3 +84,8 @@ Params:
 - filename: full path to WAV file on microSD card
 */
 void playWav(const char *filename);
+
+/*
+flush the DMA buffer. Used at the end of audio playback and at interrupts.
+*/
+void flushAudio();
