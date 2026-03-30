@@ -52,6 +52,21 @@ struct WAVHeader {
 // Button interrupt
 void IRAM_ATTR stopAudioISR();
 
+// Access and set audio abort flag
+void setAudioAbort(bool val);
+
+/*
+Access and set playback volume.
+
+Volume 0: quiet
+Volume 1: moderate
+Volume 2: loud
+
+Params:
+- volume: requested volume level (0-2)
+*/
+void setVolume(int volume);
+
 /*
 Initialize sine lookup table.
 

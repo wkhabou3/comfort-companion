@@ -32,7 +32,7 @@ void IRAM_ATTR isr(void* arg) {
     if (now - b->lastMillis > DEBOUNCE_TIME) {
         b->pressed = true;
         b->lastMillis = now;
-        audioAbort = true;
+        setAudioAbort(true);
     }
 }
 int audioOptionIndex = 0;
@@ -183,11 +183,9 @@ void loop() {
         leftFoot.pressed = false;
         volume = (volume + 1) % 3;
         Serial.print("Left Foot.    ");
-        if (volume == 0) playbackVolume = 0.2;
-        else if (volume == 1) playbackVolume = 0.5;
-        else playbackVolume = 0.9;
+        setVolume(volume);
         
-        Serial.printf("Volume Level: %d (Value: %f)\n", volume, playbackVolume);
+        Serial.printf("Volume Level: %d\n", volume);
         // Play a short beep to confirm volume change
         playTone(440.0, 100);
     }

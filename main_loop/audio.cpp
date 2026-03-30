@@ -25,12 +25,32 @@ int16_t sinTable[SIN_TABLE_SIZE];
 
 // Button interrupt
 void IRAM_ATTR stopAudioISR() {
-    audioAbort = true;
+  audioAbort = true;
+}
+
+void setAudioAbort(bool val) {
+  audioAbort = val;
+}
+
+void setVolume(int volume) {
+  switch (volume) {
+    case 0: // quiet
+      toneVolume = 0.04;
+      playbackVolume = 0.2;
+      break;
+    case 1: // moderate
+      toneVolume = 0.1;
+      playbackVolume = 0.5;
+      break;
+    default:  // loud
+      toneVolume = 0.2;
+      playbackVolume = 1;
+  }
 }
 
 void initSinTable() {
   for (int i = 0; i < SIN_TABLE_SIZE; i++) {
-    // Pre-compute sin values (amplitude 2^15 - 1, max audio value)
+    // Pre-compute sin values (peak-to-peak is (2^16)-1, which is full audio range)
     sinTable[i] = (int16_t) (sin(2.0 * M_PI * i / SIN_TABLE_SIZE) * 32767);
   }
 }
