@@ -38,7 +38,7 @@ void IRAM_ATTR isr(void* arg) {
 int audioOptionIndex = 0;
 bool storytelling = false;
 bool messagesOption = false;
-int volume = 1;
+VolumeLevel volume = VolumeLevel::MODERATE;
 int storyIndex = 0;
 int messageIndex = 0;
 String audioActions[] = {"Storytelling", "WhiteNoise", "Messages", "Meditation/Breathing"};
@@ -181,11 +181,10 @@ void loop() {
     }
     if (leftFoot.pressed) {
         leftFoot.pressed = false;
-        volume = (volume + 1) % 3;
         Serial.print("Left Foot.    ");
-        setVolume(volume);
+        setVolume(++volume);
         
-        Serial.printf("Volume Level: %d\n", volume);
+        Serial.printf("Volume Level: %d\n", static_cast<int>(volume));
         // Play a short beep to confirm volume change
         playTone(440.0, 100);
     }

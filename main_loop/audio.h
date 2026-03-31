@@ -9,19 +9,19 @@ Header file for audio functionality, including pinouts, constants, and function 
 #include "driver/i2s_std.h"
 
 // microSD breakout pinout
-#define SD_CS GPIO_NUM_22
-#define SD_MOSI GPIO_NUM_19
-#define SD_MISO GPIO_NUM_20
-#define SD_SCK GPIO_NUM_21
+#define SD_CS GPIO_NUM_42
+#define SD_MOSI GPIO_NUM_39
+#define SD_MISO GPIO_NUM_40
+#define SD_SCK GPIO_NUM_41
 
 // I2S amp pinout
-#define I2S_BCLK GPIO_NUM_11
-#define I2S_LRC  GPIO_NUM_23
-#define I2S_DOUT GPIO_NUM_10
+#define I2S_BCLK GPIO_NUM_18
+#define I2S_LRC  GPIO_NUM_38
+#define I2S_DOUT GPIO_NUM_17
 
 // SD pin (set low to mute amp)
 // Use during boot and during low-power
-#define AMP_SD   GPIO_NUM_3
+#define AMP_SD   GPIO_NUM_8
 
 // Maximum number of samples to write to the DMA buffer at a time
 #define DMA_BUF_LEN 512
@@ -31,6 +31,11 @@ Header file for audio functionality, including pinouts, constants, and function 
 
 // Size of sin lookup table (much easier computationally to play sin tones)
 #define SIN_TABLE_SIZE 256
+
+enum class VolumeLevel {QUIET, MODERATE, LOUD, COUNT};
+
+// Increment operator for VolumeLevel
+VolumeLevel& operator++(VolumeLevel& v);
 
 // Headers used to configure I2s channel per WAV file
 struct WAVHeader {
@@ -63,9 +68,9 @@ Volume 1: moderate
 Volume 2: loud
 
 Params:
-- volume: requested volume level (0-2)
+- volume: requested volume level (see enum VolumeLevel)
 */
-void setVolume(int volume);
+void setVolume(VolumeLevel volume);
 
 /*
 Initialize sine lookup table.

@@ -23,6 +23,11 @@ volatile bool audioAbort = false;
 // Allocate memory for sine lookup table
 int16_t sinTable[SIN_TABLE_SIZE];
 
+VolumeLevel& operator++(VolumeLevel& v) {
+  v = static_cast<VolumeLevel>((static_cast<int>(v) + 1) % static_cast<int>(VolumeLevel::COUNT));
+  return v;
+}
+
 // Button interrupt
 void IRAM_ATTR stopAudioISR() {
   audioAbort = true;
@@ -32,13 +37,13 @@ void setAudioAbort(bool val) {
   audioAbort = val;
 }
 
-void setVolume(int volume) {
+void setVolume(VolumeLevel volume) {
   switch (volume) {
-    case 0: // quiet
+    case VolumeLevel::QUIET:
       toneVolume = 0.04;
       playbackVolume = 0.2;
       break;
-    case 1: // moderate
+    case VolumeLevel::MODERATE:
       toneVolume = 0.1;
       playbackVolume = 0.5;
       break;
@@ -99,6 +104,9 @@ void playTone(float frequency, int duration) {
   // reset abort flag before continuing
   audioAbort = false;
 
+  // Send a short pre-roll of silence to keep clocks stable
+  flushAudio();
+
   // Track phase and  calculate step (which index of sine table to access at each for loop iteration)
   float phase = 0.0;
   float phase_step = (frequency * SIN_TABLE_SIZE) / SAMPLE_RATE;
@@ -109,6 +117,9 @@ void playTone(float frequency, int duration) {
 
   size_t bytesWritten;
 
+  // 10 ms linear fade
+  uint32_t fadeSamples = SAMPLE_RATE * 0.01;
+
   while (samplesGenerated < totalSamples && !audioAbort) {
     // Fill buffer
     for (int i = 0; i < DMA_BUF_LEN; i++) {
@@ -116,12 +127,25 @@ void playTone(float frequency, int duration) {
       if (audioAbort) {
         break;
       }
+
+      // Track current sample to apply fade
+      uint32_t currSample = samplesGenerated + i;
+      float envelope = 1.0;
+      if (currSample < fadeSamples) {                        // fade in
+        envelope = (float) currSample / fadeSamples;
+      } else if (currSample > totalSamples - fadeSamples) {  // fade out
+        uint32_t fadeOutStart = totalSamples - fadeSamples;
+        uint32_t pos = currSample - fadeOutStart;
+        envelope = 1.0f - ((float)pos / fadeSamples);
+        if (envelope < 0) envelope = 0;
+      }
+
       // Cast current phase to use as index for sine table
       int index = (int) phase;
       int16_t sample = sinTable[index];
 
-      // Scale sample by volume and write to buffer
-      int16_t bufValue = (int16_t) (sample * toneVolume);
+      // Scale sample by volume and envelope and write to buffer
+      int16_t bufValue = (int16_t) (sample * toneVolume * envelope);
       // Double write to buffer (accounting for stereo)
       buffer[2 * i] = bufValue;
       buffer[2 * i + 1] = bufValue;
