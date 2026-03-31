@@ -65,22 +65,35 @@ void setup() {
 
   listDir(SD, "/", 0);
 
+  xTaskCreatePinnedToCore(
+    audioTask,
+    "audioTask",
+    4096,
+    NULL,
+    1,
+    NULL,
+    0
+  );
+
   delay(1000);
 
   Serial.println("Playing 440Hz tone for 2000ms...");
   playTone(440, 2000);
+  while (isToneActive()) delay(100);
   Serial.println("Finished playing tone.");
 
+  delay(1000);
 
   char *fileToPlay = "/test.wav";
   Serial.print("Playing file from SD card: ");
   Serial.println(fileToPlay);
   playWav(fileToPlay);
+  while (isWavActive()) delay(100);
   Serial.println("Playback finished.");
 
   Serial.println("One more tone...");
   playTone(440, 2000);
-
+  while (isToneActive()) delay(100);
   Serial.println("All tests passed!\n");
 }
 

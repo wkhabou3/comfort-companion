@@ -17,8 +17,21 @@ int16_t buffer[DMA_BUF_LEN * 2];
 float toneVolume = 0.1;
 float playbackVolume = 0.5;
 
-// set flag whenever audio playback is interrupted
-volatile bool audioAbort = false;
+// Shared control variables
+volatile bool toneActive = false;
+volatile bool wavActive  = false;
+float currentFrequency   = 440.0;
+uint32_t toneSamplesRemaining = 0;
+float phase = 0.0;
+float phase_step = 0.0;
+
+// WAV playback state
+File wavFile;
+WAVHeader wavHeader;
+int wavBytesRemaining = 0;
+
+// Temporary buffer for WAV read
+int16_t wavBuffer[DMA_BUF_LEN * 2];
 
 // Allocate memory for sine lookup table
 int16_t sinTable[SIN_TABLE_SIZE];
@@ -30,11 +43,21 @@ VolumeLevel& operator++(VolumeLevel& v) {
 
 // Button interrupt
 void IRAM_ATTR stopAudioISR() {
-  audioAbort = true;
+  toneActive = false;
+  wavActive = false;
 }
 
 void setAudioAbort(bool val) {
-  audioAbort = val;
+  toneActive = false;
+  wavActive = false;
+}
+
+bool isToneActive() {
+  return toneActive;
+}
+
+bool isWavActive() {
+  return wavActive;
 }
 
 void setVolume(VolumeLevel volume) {
@@ -101,135 +124,35 @@ void setupI2S(uint32_t sampleRate, uint16_t numChannels) {
 }
 
 void playTone(float frequency, int duration) {
-  // reset abort flag before continuing
-  audioAbort = false;
-
-  // Send a short pre-roll of silence to keep clocks stable
-  flushAudio();
-
-  // Track phase and  calculate step (which index of sine table to access at each for loop iteration)
-  float phase = 0.0;
-  float phase_step = (frequency * SIN_TABLE_SIZE) / SAMPLE_RATE;
-
-  // Calculate number of samples required to reach duration
-  uint32_t totalSamples = (SAMPLE_RATE * duration) / 1000;
-  uint32_t samplesGenerated = 0;
-
-  size_t bytesWritten;
-
-  // 10 ms linear fade
-  uint32_t fadeSamples = SAMPLE_RATE * 0.01;
-
-  while (samplesGenerated < totalSamples && !audioAbort) {
-    // Fill buffer
-    for (int i = 0; i < DMA_BUF_LEN; i++) {
-      // Check abort flag
-      if (audioAbort) {
-        break;
-      }
-
-      // Track current sample to apply fade
-      uint32_t currSample = samplesGenerated + i;
-      float envelope = 1.0;
-      if (currSample < fadeSamples) {                        // fade in
-        envelope = (float) currSample / fadeSamples;
-      } else if (currSample > totalSamples - fadeSamples) {  // fade out
-        uint32_t fadeOutStart = totalSamples - fadeSamples;
-        uint32_t pos = currSample - fadeOutStart;
-        envelope = 1.0f - ((float)pos / fadeSamples);
-        if (envelope < 0) envelope = 0;
-      }
-
-      // Cast current phase to use as index for sine table
-      int index = (int) phase;
-      int16_t sample = sinTable[index];
-
-      // Scale sample by volume and envelope and write to buffer
-      int16_t bufValue = (int16_t) (sample * toneVolume * envelope);
-      // Double write to buffer (accounting for stereo)
-      buffer[2 * i] = bufValue;
-      buffer[2 * i + 1] = bufValue;
-
-      // Increment phase and reset at full oscillation
-      phase += phase_step;
-      if (phase >= SIN_TABLE_SIZE) {
-        phase -= SIN_TABLE_SIZE;
-      }
-    }
-
-    // Write buffer values to amp
-    i2s_channel_write(tx_chan, buffer, sizeof(buffer), &bytesWritten, portMAX_DELAY);
-
-    // Increment number of samples generated
-    samplesGenerated += DMA_BUF_LEN;
-  }
-
-  // At this point, tone generation has finished. Flush the buffer
-  flushAudio();
+  toneActive = true;
+  wavActive = false;
+  currentFrequency = frequency;
+  toneSamplesRemaining = SAMPLE_RATE * duration / 1000;
 }
 
 void playWav(const char *filename) {
-  // reset abort flag before continuing
-  audioAbort = false;
-
-  // Attempt to open file. Return if failure
-  File file = SD.open(filename);
-  if (!file) {
+  wavFile = SD.open(filename);
+  if (!wavFile) {
     Serial.println("Failed to open file");
     return;
   }
 
+  toneActive = false;
+  wavActive = true;
   // Read WAV header
-  WAVHeader header;
-  file.read((uint8_t*)&header, sizeof(WAVHeader));
+  wavFile.read((uint8_t*)&wavHeader, sizeof(WAVHeader));
 
-  if (header.audioFormat != 1) {
+  if (wavHeader.audioFormat != 1) {
     Serial.println("Unsupported WAV format (must be PCM)");
     return;
   }
 
-  if (header.bitsPerSample != 16) {
+  if (wavHeader.bitsPerSample != 16) {
     Serial.println("Only 16-bit WAV supported");
     return;
   }
-  
-  size_t bytesWritten;
 
-  // Continue while there are bytes to read from file. also check abort flag
-  while (file.available()) {
-    if (audioAbort) {
-      break;
-    }
-
-    // Shorten buffer if number of bytes available is less than buffer size
-    int bytesToRead = min((int) file.available(), (int) sizeof(buffer));
-
-    // Read from file and write to buffer
-    int bytesRead = file.read((uint8_t*)buffer, bytesToRead);
-
-    // Calculate number of samples
-    int samples = bytesRead / sizeof(int16_t);
-
-    // Re-iterate through buffer to scale by volume and sanitize values
-    for (int i = 0; i < samples; i++) {
-      int32_t sample = buffer[i] * playbackVolume;
-      // Prevent overflow
-      if (sample > 32767) {
-        sample = 32767;
-      }
-      if (sample < -32768) {
-        sample = -32768;
-      }
-      buffer[i] = (int16_t) sample;
-    }
-
-    // Write to amp
-    i2s_channel_write(tx_chan, buffer, bytesRead, &bytesWritten, portMAX_DELAY);
-  }
-
-  // Stop playback and close file
-  flushAudio();
-  file.close();
+  wavBytesRemaining = wavFile.available();
 }
 
 void flushAudio()
@@ -240,5 +163,67 @@ void flushAudio()
 
   for (int i = 0; i < 8; i++) {
     i2s_channel_write(tx_chan, silence, sizeof(silence), &bytesWritten, portMAX_DELAY);
+  }
+}
+
+void audioTask(void *param) {
+  size_t bytesWritten;
+
+  while (true) {
+    for (int i = 0; i < DMA_BUF_LEN; i++) {
+      int32_t sample = 0; // 32-bit to avoid overflow during mixing
+
+      // --- Tone generation ---
+      if (toneActive && toneSamplesRemaining > 0) {
+        Serial.printf("Tone samples remaining: %d\n", toneSamplesRemaining);
+        int index = (int)phase;
+        int16_t toneSample = sinTable[index];
+
+        // Apply tone volume
+        toneSample = (int16_t)(toneSample * toneVolume);
+        sample += toneSample;
+
+        // Advance phase
+        phase += phase_step;
+        if (phase >= SIN_TABLE_SIZE) phase -= SIN_TABLE_SIZE;
+
+        toneSamplesRemaining--;
+        if (toneSamplesRemaining == 0) toneActive = false;
+      }
+
+      // --- WAV playback ---
+      if (wavActive && wavBytesRemaining > 0) {
+        // Refill buffer if empty
+        if (i % DMA_BUF_LEN == 0) {
+          int bytesToRead = min((int)wavFile.available(), (int)sizeof(wavBuffer));
+          int bytesRead = wavFile.read((uint8_t*)wavBuffer, bytesToRead);
+          wavBytesRemaining = bytesRead / sizeof(int16_t);
+        }
+
+        if (wavBytesRemaining > 0) {
+          int16_t wavSample = wavBuffer[DMA_BUF_LEN - wavBytesRemaining];
+          wavSample = (int16_t)(wavSample * playbackVolume); // scale by volume
+          sample += wavSample;
+          wavBytesRemaining--;
+        } else {
+          // End of file
+          wavActive = false;
+          wavFile.close();
+        }
+      }
+
+      // Clamp final mixed sample to 16-bit
+      if (sample > 32767) sample = 32767;
+      if (sample < -32768) sample = -32768;
+
+      int16_t finalSample = (int16_t)sample;
+
+      // Write stereo
+      buffer[2 * i]     = finalSample;
+      buffer[2 * i + 1] = finalSample;
+    }
+
+    // Always write to I2S (silence if nothing is playing)
+    i2s_channel_write(tx_chan, buffer, sizeof(buffer), &bytesWritten, portMAX_DELAY);
   }
 }
