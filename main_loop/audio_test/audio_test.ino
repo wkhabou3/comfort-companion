@@ -82,8 +82,6 @@ void setup() {
   while (isToneActive()) delay(100);
   Serial.println("Finished playing tone.");
 
-  delay(1000);
-
   char *fileToPlay = "/test.wav";
   Serial.print("Playing file from SD card: ");
   Serial.println(fileToPlay);

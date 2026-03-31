@@ -29,6 +29,7 @@ float phase_step = 0.0;
 File wavFile;
 WAVHeader wavHeader;
 int wavBytesRemaining = 0;
+int wavReadIndex = 0;
 
 // Temporary buffer for WAV read
 int16_t wavBuffer[DMA_BUF_LEN * 2];
@@ -127,6 +128,7 @@ void playTone(float frequency, int duration) {
   toneActive = true;
   wavActive = false;
   currentFrequency = frequency;
+  phase_step = SIN_TABLE_SIZE * frequency / SAMPLE_RATE; 
   toneSamplesRemaining = SAMPLE_RATE * duration / 1000;
 }
 
@@ -198,10 +200,11 @@ void audioTask(void *param) {
           int bytesToRead = min((int)wavFile.available(), (int)sizeof(wavBuffer));
           int bytesRead = wavFile.read((uint8_t*)wavBuffer, bytesToRead);
           wavBytesRemaining = bytesRead / sizeof(int16_t);
+          wavReadIndex = 0;
         }
 
         if (wavBytesRemaining > 0) {
-          int16_t wavSample = wavBuffer[DMA_BUF_LEN - wavBytesRemaining];
+          int16_t wavSample = wavBuffer[wavReadIndex++];
           wavSample = (int16_t)(wavSample * playbackVolume); // scale by volume
           sample += wavSample;
           wavBytesRemaining--;
