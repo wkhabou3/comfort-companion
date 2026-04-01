@@ -10,7 +10,7 @@ Implementation of all audio functionality, including:
 
 static i2s_chan_handle_t tx_chan;
 
-int16_t buffer[DMA_BUF_LEN * 2];
+int16_t buffer[DMA_BUF_LEN];
 
 // Separate volume variables for pure sine tones and stored audio playback
 // Tone volume should be between 0 and 1
@@ -32,7 +32,7 @@ int wavBytesRemaining = 0;
 int wavReadIndex = 0;
 
 // Temporary buffer for WAV read
-int16_t wavBuffer[DMA_BUF_LEN * 2];
+int16_t wavBuffer[DMA_BUF_LEN];
 
 // Allocate memory for sine lookup table
 int16_t sinTable[SIN_TABLE_SIZE];
@@ -64,16 +64,16 @@ bool isWavActive() {
 void setVolume(VolumeLevel volume) {
   switch (volume) {
     case VolumeLevel::QUIET:
-      toneVolume = 0.04;
-      playbackVolume = 0.2;
-      break;
-    case VolumeLevel::MODERATE:
       toneVolume = 0.1;
       playbackVolume = 0.5;
       break;
-    default:  // loud
+    case VolumeLevel::MODERATE:
       toneVolume = 0.2;
       playbackVolume = 1;
+      break;
+    default:  // loud
+      toneVolume = 0.4;
+      playbackVolume = 2;
   }
 }
 
@@ -153,8 +153,6 @@ void playWav(const char *filename) {
     Serial.println("Only 16-bit WAV supported");
     return;
   }
-
-  wavBytesRemaining = wavFile.available();
 }
 
 void flushAudio()
@@ -176,8 +174,7 @@ void audioTask(void *param) {
       int32_t sample = 0; // 32-bit to avoid overflow during mixing
 
       // --- Tone generation ---
-      if (toneActive && toneSamplesRemaining > 0) {
-        Serial.printf("Tone samples remaining: %d\n", toneSamplesRemaining);
+      if (toneActive) {
         int index = (int)phase;
         int16_t toneSample = sinTable[index];
 
@@ -189,12 +186,13 @@ void audioTask(void *param) {
         phase += phase_step;
         if (phase >= SIN_TABLE_SIZE) phase -= SIN_TABLE_SIZE;
 
+        // Decrement remaining sample count; stop playback if none remaining
         toneSamplesRemaining--;
         if (toneSamplesRemaining == 0) toneActive = false;
       }
 
       // --- WAV playback ---
-      if (wavActive && wavBytesRemaining > 0) {
+      if (wavActive) {
         // Refill buffer if empty
         if (i % DMA_BUF_LEN == 0) {
           int bytesToRead = min((int)wavFile.available(), (int)sizeof(wavBuffer));
@@ -203,6 +201,7 @@ void audioTask(void *param) {
           wavReadIndex = 0;
         }
 
+        // Iterate through buffer if not empty
         if (wavBytesRemaining > 0) {
           int16_t wavSample = wavBuffer[wavReadIndex++];
           wavSample = (int16_t)(wavSample * playbackVolume); // scale by volume
@@ -221,9 +220,8 @@ void audioTask(void *param) {
 
       int16_t finalSample = (int16_t)sample;
 
-      // Write stereo
-      buffer[2 * i]     = finalSample;
-      buffer[2 * i + 1] = finalSample;
+      // Write mono
+      buffer[i] = finalSample;
     }
 
     // Always write to I2S (silence if nothing is playing)

@@ -32,13 +32,13 @@ void IRAM_ATTR isr(void* arg) {
     if (now - b->lastMillis > DEBOUNCE_TIME) {
         b->pressed = true;
         b->lastMillis = now;
-        setAudioAbort(true);
+        //setAudioAbort(true);
     }
 }
 int audioOptionIndex = 0;
 bool storytelling = false;
 bool messagesOption = false;
-VolumeLevel volume = VolumeLevel::MODERATE;
+VolumeLevel volume = VolumeLevel::QUIET;
 int storyIndex = 0;
 int messageIndex = 0;
 String audioActions[] = {"Storytelling", "WhiteNoise", "Messages", "Meditation/Breathing"};
@@ -125,11 +125,11 @@ void setup() {
     // rtc_gpio_pullup_en(GPIO_NUM_4);
     // rtc_gpio_pulldown_dis(GPIO_NUM_4);
     initSinTable();
-    setupI2S(SAMPLE_RATE, 2);
+    setupI2S(SAMPLE_RATE, 1);
     sdSPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
     if (!SD.begin(SD_CS, sdSPI)) {
-      Serial.println("Card Mount Failed");
-      return;
+        Serial.println("Card Mount Failed");
+        return;
     }
 
     Serial.println("SD card initialized.");
@@ -145,6 +145,9 @@ void setup() {
     attachInterruptArg(rightFoot.PIN, isr, &rightFoot, FALLING);
     attachInterruptArg(leftHand.PIN, isr, &leftHand, FALLING);
     attachInterruptArg(rightHand.PIN, isr, &rightHand, FALLING);
+
+    // Assign audio task to core 1
+    xTaskCreatePinnedToCore(audioTask, "audioTask", 4096, NULL, 1, NULL, 1);
 }
 void loop() {
     if (leftHand.pressed) {
@@ -185,8 +188,8 @@ void loop() {
         setVolume(++volume);
         
         Serial.printf("Volume Level: %d\n", static_cast<int>(volume));
-        // Play a short beep to confirm volume change
-        playTone(440.0, 100);
+        // Play a short beep to confirm volume change (if not playing other audio)
+        if (!isToneActive() && !isWavActive()) playTone(440.0, 100);
     }
     if (rightFoot.pressed) {
         rightFoot.pressed = false;

@@ -60,6 +60,12 @@ void IRAM_ATTR stopAudioISR();
 // Access and set audio abort flag
 void setAudioAbort(bool val);
 
+// Return toneActive; can be used for iteration until playback finishes
+bool isToneActive();
+
+// Return wavActive; can be used for iteration until wav playback finishes
+bool isWavActive();
+
 /*
 Access and set playback volume.
 
@@ -106,6 +112,14 @@ Params:
 void playWav(const char *filename);
 
 /*
-flush the DMA buffer. Used at the end of audio playback and at interrupts.
+flush the DMA buffer. Used at I2S channel setup to stabilize stream.
 */
 void flushAudio();
+
+/*
+Main audio loop. Should run continuously in parallel to other tasks.
+Keep the I2S channel active by sending silence (zeros) if nothing is playing.
+Use toneActive (set by playTone) and wavActive (set by playWav) flags to determine what audio to play.
+Only plays mono audio.
+*/
+void audioTask(void *param);

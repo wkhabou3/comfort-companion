@@ -50,8 +50,8 @@ void setup() {
   Serial.println("Pre-computing sine values...");
   initSinTable();
 
-  Serial.println("Setting out I2S channel (44100Hz, stereo)...");
-  setupI2S(SAMPLE_RATE, 2);
+  Serial.println("Setting out I2S channel (44100Hz, mono)...");
+  setupI2S(SAMPLE_RATE, 1);
 
   Serial.println("Initializing SD card...");
   sdSPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
@@ -65,15 +65,8 @@ void setup() {
 
   listDir(SD, "/", 0);
 
-  xTaskCreatePinnedToCore(
-    audioTask,
-    "audioTask",
-    4096,
-    NULL,
-    1,
-    NULL,
-    0
-  );
+  // Assign audio task to core 1
+  xTaskCreatePinnedToCore(audioTask, "audioTask", 4096, NULL, 1, NULL, 1);
 
   delay(1000);
 
