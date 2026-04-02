@@ -10,12 +10,12 @@ Implementation of all audio functionality, including:
 
 static i2s_chan_handle_t tx_chan;
 
-int16_t buffer[DMA_BUF_LEN];
+int16_t buffer[DMA_BUF_LEN * 2];
 
 // Separate volume variables for pure sine tones and stored audio playback
 // Tone volume should be between 0 and 1
-float toneVolume = 0.1;
-float playbackVolume = 0.5;
+float toneVolume = 0.05;
+float playbackVolume = 0.2;
 
 // Shared control variables
 volatile bool toneActive = false;
@@ -64,16 +64,16 @@ bool isWavActive() {
 void setVolume(VolumeLevel volume) {
   switch (volume) {
     case VolumeLevel::QUIET:
+      toneVolume = 0.05;
+      playbackVolume = 0.25;
+      break;
+    case VolumeLevel::MODERATE:
       toneVolume = 0.1;
       playbackVolume = 0.5;
       break;
-    case VolumeLevel::MODERATE:
+    default:  // loud
       toneVolume = 0.2;
       playbackVolume = 1;
-      break;
-    default:  // loud
-      toneVolume = 0.4;
-      playbackVolume = 2;
   }
 }
 
@@ -84,22 +84,32 @@ void initSinTable() {
   }
 }
 
-void setupI2S(uint32_t sampleRate, uint16_t numChannels) {
-  // Initialize SD pin, set low to eliminate noise on startup
+void setupI2S(uint32_t sampleRate) {
+  // Shut down amp during init
   pinMode(AMP_SD, OUTPUT);
   digitalWrite(AMP_SD, LOW);
 
-  // initialize I2S channel
+  // Create I2S TX channel
   i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
-  i2s_new_channel(&chan_cfg, &tx_chan, NULL);
+  ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_chan, NULL));
 
-  // Configure channel
+  // Standard I2S (Philips) configuration
   i2s_std_config_t std_cfg = {
-    .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(SAMPLE_RATE),
-    .slot_cfg = I2S_STD_MSB_SLOT_DEFAULT_CONFIG(
-      I2S_DATA_BIT_WIDTH_16BIT,
-      numChannels == 2 ? I2S_SLOT_MODE_STEREO : I2S_SLOT_MODE_MONO
-    ),
+    .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(sampleRate),
+
+    .slot_cfg = {
+      .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
+      .slot_bit_width = I2S_SLOT_BIT_WIDTH_16BIT,
+      .slot_mode = I2S_SLOT_MODE_STEREO,   // stereo
+      .slot_mask = I2S_STD_SLOT_BOTH,      // send L + R
+      .ws_width = 16,
+      .ws_pol = false,
+      .bit_shift = true,                   // Philips I2S
+      .left_align = false,
+      .big_endian = false,
+      .bit_order_lsb = false
+    },
+
     .gpio_cfg = {
       .mclk = I2S_GPIO_UNUSED,
       .bclk = I2S_BCLK,
@@ -113,13 +123,13 @@ void setupI2S(uint32_t sampleRate, uint16_t numChannels) {
       },
     },
   };
-  i2s_channel_init_std_mode(tx_chan, &std_cfg);
-  i2s_channel_enable(tx_chan);
 
-  // Send silence to stabilize audio stream
+  ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_chan, &std_cfg));
+  ESP_ERROR_CHECK(i2s_channel_enable(tx_chan));
+
+  // Flush initial garbage
   flushAudio();
 
-  // Enable amp
   delay(50);
   digitalWrite(AMP_SD, HIGH);
 }
@@ -169,62 +179,68 @@ void flushAudio()
 void audioTask(void *param) {
   size_t bytesWritten;
 
+  // Current volume state
+  float currentToneVolume = toneVolume;
+  float currentPlaybackVolume = playbackVolume;
+  const float toneVolumeStep = 0.005f; // volume ramp speeds
+  const float wavVolumeStep = 0.0001f;
+
   while (true) {
     for (int i = 0; i < DMA_BUF_LEN; i++) {
-      int32_t sample = 0; // 32-bit to avoid overflow during mixing
+      int32_t sample = 0; // 32-bit mix to prevent overflow
 
-      // --- Tone generation ---
+      // Tone volume ramp
+      currentToneVolume += (toneVolume - currentToneVolume) * toneVolumeStep;
+
+      // Playback volume ramp
+      currentPlaybackVolume += (playbackVolume - currentPlaybackVolume) * wavVolumeStep;
+
+      // Tone generation
       if (toneActive) {
         int index = (int)phase;
         int16_t toneSample = sinTable[index];
-
-        // Apply tone volume
-        toneSample = (int16_t)(toneSample * toneVolume);
+        toneSample = (int16_t)(toneSample * currentToneVolume);
         sample += toneSample;
 
-        // Advance phase
         phase += phase_step;
         if (phase >= SIN_TABLE_SIZE) phase -= SIN_TABLE_SIZE;
 
-        // Decrement remaining sample count; stop playback if none remaining
         toneSamplesRemaining--;
         if (toneSamplesRemaining == 0) toneActive = false;
       }
 
-      // --- WAV playback ---
+      // WAV playback
       if (wavActive) {
         // Refill buffer if empty
-        if (i % DMA_BUF_LEN == 0) {
+        if (i == 0) {
           int bytesToRead = min((int)wavFile.available(), (int)sizeof(wavBuffer));
           int bytesRead = wavFile.read((uint8_t*)wavBuffer, bytesToRead);
           wavBytesRemaining = bytesRead / sizeof(int16_t);
           wavReadIndex = 0;
         }
 
-        // Iterate through buffer if not empty
         if (wavBytesRemaining > 0) {
           int16_t wavSample = wavBuffer[wavReadIndex++];
-          wavSample = (int16_t)(wavSample * playbackVolume); // scale by volume
+          wavSample = (int16_t)(wavSample * currentPlaybackVolume);
           sample += wavSample;
           wavBytesRemaining--;
         } else {
-          // End of file
           wavActive = false;
           wavFile.close();
         }
       }
 
-      // Clamp final mixed sample to 16-bit
+      // Clamp to 16-bit
       if (sample > 32767) sample = 32767;
       if (sample < -32768) sample = -32768;
 
       int16_t finalSample = (int16_t)sample;
 
-      // Write mono
-      buffer[i] = finalSample;
+      // Stereo output
+      buffer[2*i]     = finalSample; // Left
+      buffer[2*i + 1] = finalSample; // Right
     }
 
-    // Always write to I2S (silence if nothing is playing)
     i2s_channel_write(tx_chan, buffer, sizeof(buffer), &bytesWritten, portMAX_DELAY);
   }
 }

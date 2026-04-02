@@ -113,9 +113,8 @@ void listDir(fs::FS &fs, const char * dirname, uint8_t levels) {
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("starting");
     while(!Serial);
-    delay(1000);
+        delay(1000);
     ++bootCount;
     Serial.println("Boot number: " + String(bootCount));    
     // print_wakeup_reason();
@@ -125,7 +124,7 @@ void setup() {
     // rtc_gpio_pullup_en(GPIO_NUM_4);
     // rtc_gpio_pulldown_dis(GPIO_NUM_4);
     initSinTable();
-    setupI2S(SAMPLE_RATE, 1);
+    setupI2S(SAMPLE_RATE);
     sdSPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
     if (!SD.begin(SD_CS, sdSPI)) {
         Serial.println("Card Mount Failed");
@@ -188,8 +187,9 @@ void loop() {
         setVolume(++volume);
         
         Serial.printf("Volume Level: %d\n", static_cast<int>(volume));
+        delay(50);
         // Play a short beep to confirm volume change (if not playing other audio)
-        if (!isToneActive() && !isWavActive()) playTone(440.0, 100);
+        if (!isToneActive() && !isWavActive()) playTone(440.0, 200);
     }
     if (rightFoot.pressed) {
         rightFoot.pressed = false;

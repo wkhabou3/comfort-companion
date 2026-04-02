@@ -86,13 +86,12 @@ Reduces computational time to play sin wave tones.
 void initSinTable();
 
 /*
-Set up and configure I2S channel based on given sample rate and mono/stereo output.
+Set up and configure stereo I2S channel based on given sample rate.
 
 Params:
 - sampleRate: sampling rate in Hz
-- numChannels: 1 for mono, 2+ for stereo
 */
-void setupI2S(uint32_t sampleRate, uint16_t numChannels);
+void setupI2S(uint32_t sampleRate);
 
 /*
 Generates and plays sine wave tone for specified duration.
