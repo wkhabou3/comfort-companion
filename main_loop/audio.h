@@ -16,7 +16,7 @@ Header file for audio functionality, including pinouts, constants, and function 
 
 // I2S amp pinout
 #define I2S_BCLK GPIO_NUM_18
-#define I2S_LRC  GPIO_NUM_38
+#define I2S_LRC  GPIO_NUM_16
 #define I2S_DOUT GPIO_NUM_17
 
 // SD pin (set low to mute amp)

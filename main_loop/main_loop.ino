@@ -113,8 +113,9 @@ void listDir(fs::FS &fs, const char * dirname, uint8_t levels) {
 
 void setup() {
     Serial.begin(115200);
-    while(!Serial);
-        delay(1000);
+    unsigned long start = millis();
+    while(!Serial && millis() - start < 1000);  // Wait until Serial or until 1 second elapsed
+        delay(10);
     ++bootCount;
     Serial.println("Boot number: " + String(bootCount));    
     // print_wakeup_reason();
@@ -144,6 +145,8 @@ void setup() {
     attachInterruptArg(rightFoot.PIN, isr, &rightFoot, FALLING);
     attachInterruptArg(leftHand.PIN, isr, &leftHand, FALLING);
     attachInterruptArg(rightHand.PIN, isr, &rightHand, FALLING);
+
+    setVolume(volume);
 
     // Assign audio task to core 1
     xTaskCreatePinnedToCore(audioTask, "audioTask", 4096, NULL, 1, NULL, 1);

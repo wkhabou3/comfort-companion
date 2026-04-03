@@ -65,15 +65,15 @@ void setVolume(VolumeLevel volume) {
   switch (volume) {
     case VolumeLevel::QUIET:
       toneVolume = 0.05;
-      playbackVolume = 0.25;
+      playbackVolume = 0.2;
       break;
     case VolumeLevel::MODERATE:
       toneVolume = 0.1;
-      playbackVolume = 0.5;
+      playbackVolume = 0.4;
       break;
     default:  // loud
       toneVolume = 0.2;
-      playbackVolume = 1;
+      playbackVolume = 0.8;
   }
 }
 
@@ -212,19 +212,20 @@ void audioTask(void *param) {
       // WAV playback
       if (wavActive) {
         // Refill buffer if empty
-        if (i == 0) {
+        if (wavBytesRemaining == 0) {
           int bytesToRead = min((int)wavFile.available(), (int)sizeof(wavBuffer));
           int bytesRead = wavFile.read((uint8_t*)wavBuffer, bytesToRead);
           wavBytesRemaining = bytesRead / sizeof(int16_t);
           wavReadIndex = 0;
         }
 
+        // buffer refilled or non-empty: write next sample to buffer
         if (wavBytesRemaining > 0) {
           int16_t wavSample = wavBuffer[wavReadIndex++];
           wavSample = (int16_t)(wavSample * currentPlaybackVolume);
           sample += wavSample;
           wavBytesRemaining--;
-        } else {
+        } else {    // buffer still empty: end of file
           wavActive = false;
           wavFile.close();
         }
