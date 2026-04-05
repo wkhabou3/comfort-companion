@@ -8,9 +8,14 @@ Implementation of all audio functionality, including:
 
 #include "audio.h"
 
-static i2s_chan_handle_t tx_chan;
 
-int16_t buffer[DMA_BUF_LEN * 2];
+static i2s_chan_handle_t tx_chan;   // I2S channel handle
+SemaphoreHandle_t i2sMutex;         // Mutex to manage I2S channel config and writes atomically
+volatile bool i2sAlreadySetup;      // Flag determining if setupI2S was run at least once
+
+// Separate buffers for mono/stereo
+int16_t monoBuffer[DMA_BUF_LEN];
+int16_t stereoBuffer[DMA_BUF_LEN * 2];
 
 // Separate volume variables for pure sine tones and stored audio playback
 // Tone volume should be between 0 and 1
@@ -18,6 +23,8 @@ float toneVolume = 0.05;
 float playbackVolume = 0.2;
 
 // Shared control variables
+uint32_t currentSampleRate = 0;
+uint16_t currentChannels = 0;
 volatile bool toneActive = false;
 volatile bool wavActive  = false;
 float currentFrequency   = 440.0;
@@ -30,6 +37,10 @@ File wavFile;
 WAVHeader wavHeader;
 int wavBytesRemaining = 0;
 int wavReadIndex = 0;
+
+// Variables to manage SD file reads during file playback
+volatile bool wavStartRequested = false;    // Use request mechanism; audio task handles SD reads
+char nextFilename[64];
 
 // Temporary buffer for WAV read
 int16_t wavBuffer[DMA_BUF_LEN];
@@ -64,16 +75,16 @@ bool isWavActive() {
 void setVolume(VolumeLevel volume) {
   switch (volume) {
     case VolumeLevel::QUIET:
-      toneVolume = 0.05;
-      playbackVolume = 0.2;
+      toneVolume = 0.083;
+      playbackVolume = 0.25;
       break;
     case VolumeLevel::MODERATE:
-      toneVolume = 0.1;
-      playbackVolume = 0.4;
+      toneVolume = 0.17;
+      playbackVolume = 0.5;
       break;
     default:  // loud
-      toneVolume = 0.2;
-      playbackVolume = 0.8;
+      toneVolume = 0.33;
+      playbackVolume = 1;
   }
 }
 
@@ -84,7 +95,7 @@ void initSinTable() {
   }
 }
 
-void setupI2S(uint32_t sampleRate) {
+void setupI2S(uint32_t sampleRate, uint16_t numChannels) {
   // Shut down amp during init
   pinMode(AMP_SD, OUTPUT);
   digitalWrite(AMP_SD, LOW);
@@ -100,8 +111,8 @@ void setupI2S(uint32_t sampleRate) {
     .slot_cfg = {
       .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
       .slot_bit_width = I2S_SLOT_BIT_WIDTH_16BIT,
-      .slot_mode = I2S_SLOT_MODE_STEREO,   // stereo
-      .slot_mask = I2S_STD_SLOT_BOTH,      // send L + R
+      .slot_mode = (numChannels == 1) ? I2S_SLOT_MODE_MONO : I2S_SLOT_MODE_STEREO,
+      .slot_mask = (numChannels == 1) ? I2S_STD_SLOT_LEFT : I2S_STD_SLOT_BOTH,
       .ws_width = 16,
       .ws_pol = false,
       .bit_shift = true,                   // Philips I2S
@@ -124,56 +135,61 @@ void setupI2S(uint32_t sampleRate) {
     },
   };
 
+  // Create mutex and set flag if this function is run for the first time
+  if (i2sAlreadySetup) {
+    i2sMutex = xSemaphoreCreateMutex();
+    i2sAlreadySetup = true;
+  }
+
   ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_chan, &std_cfg));
   ESP_ERROR_CHECK(i2s_channel_enable(tx_chan));
 
-  // Flush initial garbage
-  flushAudio();
-
   delay(50);
   digitalWrite(AMP_SD, HIGH);
+
+  // Set sample rate and number of channels
+  currentSampleRate = sampleRate;
+  currentChannels = numChannels;
+}
+
+void reconfigureI2S(uint32_t sampleRate, uint16_t numChannels) {
+  if (sampleRate == currentSampleRate && numChannels == currentChannels) {
+    return; // no change needed
+  }
+
+  // Protect channel creation with mutex
+  if (xSemaphoreTake(i2sMutex, portMAX_DELAY)) {
+    // Disable + delete old channel
+    if (tx_chan) {
+      i2s_channel_disable(tx_chan);
+      i2s_del_channel(tx_chan);
+      tx_chan = NULL;
+    }
+
+    setupI2S(sampleRate, numChannels, false);
+
+    currentSampleRate = sampleRate;
+    currentChannels = numChannels;
+
+    xSemaphoreGive(i2sMutex);
+  }
 }
 
 void playTone(float frequency, int duration) {
   toneActive = true;
   wavActive = false;
+
+  // Set frequency, step, and total number of samples
   currentFrequency = frequency;
   phase_step = SIN_TABLE_SIZE * frequency / SAMPLE_RATE; 
   toneSamplesRemaining = SAMPLE_RATE * duration / 1000;
 }
 
 void playWav(const char *filename) {
-  wavFile = SD.open(filename);
-  if (!wavFile) {
-    Serial.println("Failed to open file");
-    return;
-  }
-
+  // Copy filename to nextFilename, then set request flag for main audio task
+  strncpy(nextFilename, filename, sizeof(nextFilename));
+  wavStartRequested = true;
   toneActive = false;
-  wavActive = true;
-  // Read WAV header
-  wavFile.read((uint8_t*)&wavHeader, sizeof(WAVHeader));
-
-  if (wavHeader.audioFormat != 1) {
-    Serial.println("Unsupported WAV format (must be PCM)");
-    return;
-  }
-
-  if (wavHeader.bitsPerSample != 16) {
-    Serial.println("Only 16-bit WAV supported");
-    return;
-  }
-}
-
-void flushAudio()
-{
-  // Overwrite buffer with zeros
-  int16_t silence[DMA_BUF_LEN * 2] = {0};
-  size_t bytesWritten;
-
-  for (int i = 0; i < 8; i++) {
-    i2s_channel_write(tx_chan, silence, sizeof(silence), &bytesWritten, portMAX_DELAY);
-  }
 }
 
 void audioTask(void *param) {
@@ -182,12 +198,62 @@ void audioTask(void *param) {
   // Current volume state
   float currentToneVolume = toneVolume;
   float currentPlaybackVolume = playbackVolume;
-  const float toneVolumeStep = 0.005f; // volume ramp speeds
+  // volume ramp speeds
+  const float toneVolumeStep = 0.005f;
   const float wavVolumeStep = 0.0001f;
 
   while (true) {
+    if (wavStartRequested) {
+      wavStartRequested = false;
+
+      // Stop current playback cleanly
+      if (wavFile) {
+        wavFile.close();
+      }
+
+      wavActive = false;
+
+      // Reset ALL state
+      wavBytesRemaining = 0;
+      wavReadIndex = 0;
+
+      // Open new file
+      wavFile = SD.open(nextFilename);
+      if (!wavFile) {
+        Serial.println("Failed to open file");
+        continue;
+      }
+
+      // Read header safely
+      int bytesRead = wavFile.read((uint8_t*)&wavHeader, sizeof(WAVHeader));
+      if (bytesRead != sizeof(WAVHeader)) {
+        Serial.println("Header read failed");
+        wavFile.close();
+        continue;
+      }
+
+      // Validate
+      if (wavHeader.audioFormat != 1) {
+        Serial.println("Unsupported WAV format (must be PCM)");
+        wavFile.close();
+        continue;
+      }
+
+      if (wavHeader.bitsPerSample != 16) {
+        Serial.println("Only 16-bit WAV supported");
+        wavFile.close();
+        continue;
+      }
+
+      // Reconfigure I2S safely
+      reconfigureI2S(wavHeader.sampleRate, wavHeader.numChannels);
+
+      wavActive = true;
+    }
+
     for (int i = 0; i < DMA_BUF_LEN; i++) {
-      int32_t sample = 0; // 32-bit mix to prevent overflow
+      int32_t sample1 = 0;  // 32-bit mix to prevent overflow
+      int32_t sample2 = 0;  // Second sample value for stereo writes
 
       // Tone volume ramp
       currentToneVolume += (toneVolume - currentToneVolume) * toneVolumeStep;
@@ -200,7 +266,8 @@ void audioTask(void *param) {
         int index = (int)phase;
         int16_t toneSample = sinTable[index];
         toneSample = (int16_t)(toneSample * currentToneVolume);
-        sample += toneSample;
+        sample1 += toneSample;
+        sample2 += toneSample;
 
         phase += phase_step;
         if (phase >= SIN_TABLE_SIZE) phase -= SIN_TABLE_SIZE;
@@ -222,9 +289,17 @@ void audioTask(void *param) {
         // buffer refilled or non-empty: write next sample to buffer
         if (wavBytesRemaining > 0) {
           int16_t wavSample = wavBuffer[wavReadIndex++];
-          wavSample = (int16_t)(wavSample * currentPlaybackVolume);
-          sample += wavSample;
+          wavSample = (int16_t) (wavSample * currentPlaybackVolume);
+          sample1 += wavSample;
           wavBytesRemaining--;
+
+          // If stereo, read another sample
+          if (currentChannels > 1) {
+            wavSample = wavBuffer[wavReadIndex++];
+            wavSample = (int16_t) (wavSample * currentPlaybackVolume);
+            sample2 += wavSample;
+            wavBytesRemaining--;
+          }
         } else {    // buffer still empty: end of file
           wavActive = false;
           wavFile.close();
@@ -232,16 +307,35 @@ void audioTask(void *param) {
       }
 
       // Clamp to 16-bit
-      if (sample > 32767) sample = 32767;
-      if (sample < -32768) sample = -32768;
+      if (sample1 > 32767) sample1 = 32767;
+      if (sample1 < -32768) sample1 = -32768;
 
-      int16_t finalSample = (int16_t)sample;
+      if (sample2 > 32767) sample2 = 32767;
+      if (sample2 < -32768) sample2 = -32768;
 
-      // Stereo output
-      buffer[2*i]     = finalSample; // Left
-      buffer[2*i + 1] = finalSample; // Right
+      int16_t finalSample1 = (int16_t) sample1;
+      int16_t finalSample2 = (int16_t) sample2;
+
+      if (currentChannels == 1) {
+        //Mono output
+        monoBuffer[i] = finalSample1;
+      } else {
+        // Stereo output
+        stereoBuffer[2*i] = finalSample1; // Left
+        stereoBuffer[2*i + 1] = finalSample2; // Right
+      }
     }
 
-    i2s_channel_write(tx_chan, buffer, sizeof(buffer), &bytesWritten, portMAX_DELAY);
+    // Protected by mutex to ensure channel exists
+    if (xSemaphoreTake(i2sMutex, portMAX_DELAY)) {
+      if (tx_chan != NULL) {
+        if (currentChannels == 1) {
+          i2s_channel_write(tx_chan, monoBuffer, sizeof(monoBuffer), &bytesWritten, portMAX_DELAY);
+        } else {
+          i2s_channel_write(tx_chan, stereoBuffer, sizeof(stereoBuffer), &bytesWritten, portMAX_DELAY);
+        }
+      }
+      xSemaphoreGive(i2sMutex);
+    }
   }
 }

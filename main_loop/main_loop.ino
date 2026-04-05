@@ -49,7 +49,7 @@ struct StoryNode{
     const char* audioFile;
 };
 StoryNode storyTree[] = {
-    {"Start: You are walking in a forest! Suddenly, you come across a fork in the road, go [Left] or [Right]?", 1, 2, "/test.wav"}, //0
+    {"Start: You are walking in a forest! Suddenly, you come across a fork in the road, go [Left] or [Right]?", 1, 2, "/test_stereo.wav"}, //0
     {"Went Left!: You come across a cave, [Go Inside] or [Keep Walking]?", 3, 4, "/test.wav"}, //1
     {"Went Right!: You reach a cliff, [Cross the Bridge] or [Climb Down]?", 5, 6, "/test.wav"}, //2
     {"Went into the cave!: You see a dragon! [Fight] or [Run Away]?", 7, 8, "/test.wav"}, //3
@@ -125,7 +125,7 @@ void setup() {
     // rtc_gpio_pullup_en(GPIO_NUM_4);
     // rtc_gpio_pulldown_dis(GPIO_NUM_4);
     initSinTable();
-    setupI2S(SAMPLE_RATE);
+    setupI2S(SAMPLE_RATE, 2);
     sdSPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
     if (!SD.begin(SD_CS, sdSPI)) {
         Serial.println("Card Mount Failed");

@@ -34,7 +34,7 @@ Header file for audio functionality, including pinouts, constants, and function 
 
 enum class VolumeLevel {QUIET, MODERATE, LOUD, COUNT};
 
-// Increment operator for VolumeLevel
+// Increment operator to cycle through VolumeLevels
 VolumeLevel& operator++(VolumeLevel& v);
 
 // Headers used to configure I2s channel per WAV file
@@ -86,12 +86,24 @@ Reduces computational time to play sin wave tones.
 void initSinTable();
 
 /*
-Set up and configure stereo I2S channel based on given sample rate.
+Set up and configure stereo I2S channel based on given sample rate and mono/stereo.
+If first run, 
 
 Params:
 - sampleRate: sampling rate in Hz
+- numChannels: number of channels (1 for mono, 2 for stereo)
 */
-void setupI2S(uint32_t sampleRate);
+void setupI2S(uint32_t sampleRate, uint16_t numChannels);
+
+/*
+Reconfigure the I2S channel as needed, changing the sample rate and switching between mono/stereo.
+If sample rate and number of channels are same as before, return without doing anything.
+
+Params:
+- sampleRate: the sample rate to switch to.
+- numChannels: the number of channels to switch to.
+*/
+void reconfigureI2S(uint32_t sampleRate, uint16_t numChannels);
 
 /*
 Generates and plays sine wave tone for specified duration.
@@ -109,11 +121,6 @@ Params:
 - filename: full path to WAV file on microSD card
 */
 void playWav(const char *filename);
-
-/*
-flush the DMA buffer. Used at I2S channel setup to stabilize stream.
-*/
-void flushAudio();
 
 /*
 Main audio loop. Should run continuously in parallel to other tasks.
