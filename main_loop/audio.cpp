@@ -13,9 +13,8 @@ static i2s_chan_handle_t tx_chan;   // I2S channel handle
 SemaphoreHandle_t i2sMutex;         // Mutex to manage I2S channel config and writes atomically
 volatile bool i2sAlreadySetup;      // Flag determining if setupI2S was run at least once
 
-// Separate buffers for mono/stereo
-int16_t monoBuffer[DMA_BUF_LEN];
-int16_t stereoBuffer[DMA_BUF_LEN * 2];
+// Stereo buffer
+int16_t buffer[DMA_BUF_LEN * 2];
 
 // Separate volume variables for pure sine tones and stored audio playback
 // Tone volume should be between 0 and 1
@@ -43,7 +42,7 @@ volatile bool wavStartRequested = false;    // Use request mechanism; audio task
 char nextFilename[64];
 
 // Temporary buffer for WAV read
-int16_t wavBuffer[DMA_BUF_LEN];
+int16_t wavBuffer[DMA_BUF_LEN * 2];
 
 // Allocate memory for sine lookup table
 int16_t sinTable[SIN_TABLE_SIZE];
@@ -106,13 +105,17 @@ void setupI2S(uint32_t sampleRate, uint16_t numChannels) {
 
   // Standard I2S (Philips) configuration
   i2s_std_config_t std_cfg = {
-    .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(sampleRate),
+    .clk_cfg = {
+      .sample_rate_hz = sampleRate,
+      .clk_src = I2S_CLK_SRC_XTAL,
+      .mclk_multiple = I2S_MCLK_MULTIPLE_256,
+    },
 
     .slot_cfg = {
       .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
       .slot_bit_width = I2S_SLOT_BIT_WIDTH_16BIT,
-      .slot_mode = (numChannels == 1) ? I2S_SLOT_MODE_MONO : I2S_SLOT_MODE_STEREO,
-      .slot_mask = (numChannels == 1) ? I2S_STD_SLOT_LEFT : I2S_STD_SLOT_BOTH,
+      .slot_mode = I2S_SLOT_MODE_STEREO,
+      .slot_mask = I2S_STD_SLOT_BOTH,
       .ws_width = 16,
       .ws_pol = false,
       .bit_shift = true,                   // Philips I2S
@@ -136,7 +139,7 @@ void setupI2S(uint32_t sampleRate, uint16_t numChannels) {
   };
 
   // Create mutex and set flag if this function is run for the first time
-  if (i2sAlreadySetup) {
+  if (!i2sAlreadySetup) {
     i2sMutex = xSemaphoreCreateMutex();
     i2sAlreadySetup = true;
   }
@@ -152,37 +155,14 @@ void setupI2S(uint32_t sampleRate, uint16_t numChannels) {
   currentChannels = numChannels;
 }
 
-void reconfigureI2S(uint32_t sampleRate, uint16_t numChannels) {
-  if (sampleRate == currentSampleRate && numChannels == currentChannels) {
-    return; // no change needed
-  }
-
-  // Protect channel creation with mutex
-  if (xSemaphoreTake(i2sMutex, portMAX_DELAY)) {
-    // Disable + delete old channel
-    if (tx_chan) {
-      i2s_channel_disable(tx_chan);
-      i2s_del_channel(tx_chan);
-      tx_chan = NULL;
-    }
-
-    setupI2S(sampleRate, numChannels, false);
-
-    currentSampleRate = sampleRate;
-    currentChannels = numChannels;
-
-    xSemaphoreGive(i2sMutex);
-  }
-}
-
 void playTone(float frequency, int duration) {
   toneActive = true;
   wavActive = false;
 
   // Set frequency, step, and total number of samples
   currentFrequency = frequency;
-  phase_step = SIN_TABLE_SIZE * frequency / SAMPLE_RATE; 
-  toneSamplesRemaining = SAMPLE_RATE * duration / 1000;
+  phase_step = SIN_TABLE_SIZE * frequency / currentSampleRate; 
+  toneSamplesRemaining = currentSampleRate * duration / 1000;
 }
 
 void playWav(const char *filename) {
@@ -245,9 +225,7 @@ void audioTask(void *param) {
         continue;
       }
 
-      // Reconfigure I2S safely
-      reconfigureI2S(wavHeader.sampleRate, wavHeader.numChannels);
-
+      currentChannels = wavHeader.numChannels;
       wavActive = true;
     }
 
@@ -291,13 +269,14 @@ void audioTask(void *param) {
           int16_t wavSample = wavBuffer[wavReadIndex++];
           wavSample = (int16_t) (wavSample * currentPlaybackVolume);
           sample1 += wavSample;
+          sample2 += wavSample;
           wavBytesRemaining--;
 
           // If stereo, read another sample
           if (currentChannels > 1) {
             wavSample = wavBuffer[wavReadIndex++];
             wavSample = (int16_t) (wavSample * currentPlaybackVolume);
-            sample2 += wavSample;
+            sample2 = wavSample;
             wavBytesRemaining--;
           }
         } else {    // buffer still empty: end of file
@@ -316,24 +295,15 @@ void audioTask(void *param) {
       int16_t finalSample1 = (int16_t) sample1;
       int16_t finalSample2 = (int16_t) sample2;
 
-      if (currentChannels == 1) {
-        //Mono output
-        monoBuffer[i] = finalSample1;
-      } else {
-        // Stereo output
-        stereoBuffer[2*i] = finalSample1; // Left
-        stereoBuffer[2*i + 1] = finalSample2; // Right
-      }
+      // Stereo output
+      buffer[2 * i] = finalSample1; // Left
+      buffer[2 * i + 1] = finalSample2; // Right
     }
 
     // Protected by mutex to ensure channel exists
     if (xSemaphoreTake(i2sMutex, portMAX_DELAY)) {
       if (tx_chan != NULL) {
-        if (currentChannels == 1) {
-          i2s_channel_write(tx_chan, monoBuffer, sizeof(monoBuffer), &bytesWritten, portMAX_DELAY);
-        } else {
-          i2s_channel_write(tx_chan, stereoBuffer, sizeof(stereoBuffer), &bytesWritten, portMAX_DELAY);
-        }
+        i2s_channel_write(tx_chan, buffer, sizeof(buffer), &bytesWritten, portMAX_DELAY);
       }
       xSemaphoreGive(i2sMutex);
     }
