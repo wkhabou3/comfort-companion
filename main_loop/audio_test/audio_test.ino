@@ -57,7 +57,7 @@ void setup() {
   sdSPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
   if (!SD.begin(SD_CS, sdSPI)) {
     Serial.println("Card Mount Failed");
-    return;
+    //return;
   }
 
   Serial.println("SD card initialized.");
@@ -67,6 +67,8 @@ void setup() {
 
   // Assign audio task to core 1
   xTaskCreatePinnedToCore(audioTask, "audioTask", 4096, NULL, 1, NULL, 1);
+
+  setVolume(VolumeLevel::LOUD);
 
   delay(1000);
 
@@ -81,6 +83,8 @@ void setup() {
   playWav(fileToPlay);
   while (isWavActive()) delay(100);
   Serial.println("Playback finished.");
+
+  setVolume(VolumeLevel::MODERATE);
 
   Serial.println("One more tone...");
   playTone(440, 2000);

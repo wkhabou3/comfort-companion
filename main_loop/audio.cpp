@@ -170,6 +170,7 @@ void playWav(const char *filename) {
   strncpy(nextFilename, filename, sizeof(nextFilename));
   wavStartRequested = true;
   toneActive = false;
+  delay(100);
 }
 
 void audioTask(void *param) {

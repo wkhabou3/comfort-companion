@@ -18,10 +18,10 @@ struct Button {
     unsigned long lastMillis;
 };
 
-Button leftFoot = {4, false, 0};
-Button rightFoot = {0, false, 0};
-Button leftHand = {1, false, 0};
-Button rightHand = {2, false, 0};
+Button leftFoot = {11, false, 0};
+Button rightFoot = {12, false, 0};
+Button leftHand = {47, false, 0};
+Button rightHand = {48, false, 0};
 int motorPin = 5;
 const unsigned long DEBOUNCE_TIME = 250;
 

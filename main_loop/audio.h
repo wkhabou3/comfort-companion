@@ -13,7 +13,7 @@ Header file for audio functionality, including pinouts, constants, and function 
 
 // microSD breakout pinout
 #define SD_CS GPIO_NUM_42
-#define SD_MOSI GPIO_NUM_39
+#define SD_MOSI GPIO_NUM_38
 #define SD_MISO GPIO_NUM_40
 #define SD_SCK GPIO_NUM_41
 
