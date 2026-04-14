@@ -104,40 +104,36 @@ struct StoryNode{
     int optionB;
     const char* audioFile;
 };
-StoryNode storyTree[] = {
-    {"Start: You are walking in a forest! Suddenly, you come across a fork in the road, go [Left] or [Right]?", 1, 2, "/test_stereo.wav"}, //0
-    {"Went Left!: You come across a cave, [Go Inside] or [Keep Walking]?", 3, 4, "/test.wav"}, //1
-    {"Went Right!: You reach a cliff, [Cross the Bridge] or [Climb Down]?", 5, 6, "/test.wav"}, //2
-    {"Went into the cave!: You see a dragon! [Fight] or [Run Away]?", 7, 8, "/test.wav"}, //3
-    {"Kept Walking: You come across a bear! Oh No! Run the the [Left] or [Right]?", 9, 10, "/test.wav"}, //4
-    {"Crossed the Bridge: There is a cottage and a palace, go inside the [Cottage] or the [Palace]?", 11, 12, "/test.wav"}, //5
-    {"Climb Down: There is a river ahead! [Bravely Swim] or [Sail a Boat]?", 13, 14, "/test.wav"}, //6
-    {"Ending 7: You fought the dragon and gained treasure! Congrats!", 0, 0, "/test.wav"}, //7
-    {"Ending 8: You ran away and got home safe and sound!", 0, 0, "/test.wav"}, // 8
-    {"Ending 9: You ran to the left, but the bear caught you! :( Better luck next time!", 0, 0, "/test.wav"}, //9
-    {"Ending 10: You ran to the right and managed to escape by hiding in a tunnel, Yay!", 0, 0, "/test.wav"}, //10
-    {"Ending 11: You went into the cottage and found a witch brewing a soup! You are now in the soup :(", 0, 0, "/test.wav"},
-    {"Ending 12: You went into the palace and and were elected to be the new ruler of the kingdom, best of luck!", 0, 0, "/test.wav"},
-    {"Ending 13: You tried to swim across the river got chased by alligators, but you fought bravely and made it across!", 0, 0, "/test.wav"},
-    {"Ending 14: You took a boat and tried to cross, but the boat sank and you had to turn back, and climb back up the cliff", 0, 0, "/test.wav"}
-};
+StoryNode storyTree[] = { 
+    {"Start: You are walking in a forest! Suddenly, you come across a fork in the road, press my left paw to go left or my right paw to go right.", 1, 2, "/story0.wav"}, //0 
+    {"Went Left!: You come across a cave, press my left paw to go inside or my right paw to keep walking?", 3, 4, "/story1.wav"}, //1 
+    {"Went Right!: You reach a cliff, [press my left paw to cross the bridge] or [press my right paw to climb down]?", 5, 6, "/story2.wav"}, //2 
+    {"Went into the cave!: You see a dragon! [Fight] or [Run Away]?", 7, 8, "/story3.wav"}, //3 
+    {"Kept Walking: You come across a bear! Oh No! Run to the [Left] or [Right]?", 9, 10, "/story4.wav"}, //4 
+    {"Crossed the Bridge: There is a cottage and a palace, go inside the [Cottage] or the [Palace]?", 11, 12, "/story5.wav"}, //5 
+    {"Climb Down: There is a river ahead! [Bravely Swim] or [Sail a Boat]?", 13, 14, "/story6.wav"}, //6 
+    {"Ending 7: You fought the dragon and gained treasure! Congrats!", 0, 0, "/story7.wav"}, //7 
+    {"Ending 8: You ran away and got home safe and sound!", 0, 0, "/story8.wav"}, // 8 
+    {"Ending 9: You ran to the left, but the bear caught you! :( Better luck next time!", 0, 0, "/story9.wav"}, //9 
+    {"Ending 10: You ran to the right and managed to escape by hiding in a tunnel, Yay!", 0, 0, "/story10.wav"}, //10 
+    {"Ending 11: You went into the cottage and found a witch brewing a soup! You are now in the soup :(", 0, 0, "/story11.wav"}, //11
+    {"Ending 12: You went into the palace and and were elected to be the new ruler of the kingdom, best of luck!", 0, 0, "/story12.wav"}, //12
+    {"Ending 13: You tried to swim across the river got chased by alligators, but you fought bravely and made it across!", 0, 0, "/story13.wav"}, //13
+    {"Ending 14: You took a boat and tried to cross, but the boat sank and you had to turn back, and climb back up the cliff", 0, 0, "/story14.wav"} //14
+}; 
 
 StoryNode medicalStory[] = {
-    {"Medical Story", 1, 1, "/test_stereo.wav"}, //0
-    {"Step One [More detail] or [Next Step]?", 2, 3, "/test.wav"}, //1
-    {"More detail of step one, [repeat] or [Next Step]?", 2, 3, "/test.wav"}, //2
-    {"Step Two [More detail] or [Next Step]?", 4, 5, "/test.wav"}, //3
-    {"More detail of step two, [repeat] or [Next Step]?", 4, 5, "/test.wav"}, //4
-    {"Step Three [More detail] or [Next Step]?", 6, 7, "/test.wav"}, //5
-    {"More detail of step three, [repeat] or [Next Step]?", 6, 7, "/test.wav"}, //6
-    {"Step Four [More detail] or [Next Step]?", 8, 9, "/test.wav"}, //7
-    {"More detail of step four, [repeat] or [Next Step]?", 8, 9, "/test.wav"}, // 8
-    {"Step Five [More detail] or [Next Step]?", 10, 11, "/test.wav"}, //9
-    {"More detail of step five, [repeat] or [Next Step]?", 10, 11, "/test.wav"}, //10
-    {"Step Six [More detail] or [Next Step]?", 12, 13, "/test.wav"}, //11
-    {"More detail of step six, [repeat] or [Next Step]?", 12, 13, "/test.wav"}, //12
-    {"Last Step [More detail] or [repeat]?", 14, 1, "/test.wav"}, //13
-    {"More detail of last step, [repeat] or [Next Step]?", 1, 1, "/test.wav"} //14
+    {"Lets walk through a needle biopsy together, [press one of my paws to continue]" , 1, 1, "/medical0.wav"}, //0 
+    {"Step One, Preparation [Press my left paw if you want to hear more] or [my right paw for the next step ]?", 2, 3, "/medical1.wav"}, //1 
+    {"A doctor will clean your skin to kill all the germs and rub a special cream to stop you from feeling pain in that area, [press my left paw to hear this again] or [press my right paw for the Next Step]?", 2, 3, "/medical2.wav"}, //2 
+    {"Step two, Sample Collection [Press my left paw if you want to hear more] or [my right paw for the next step ]?", 4, 5, "/medical3.wav"}, //3 
+    {"The doctor will use a small needle to take a small sample to learn more about you and how to help, [press my left paw to hear this again] or [press my right paw for the Next Step]?", 4, 5, "/medical4.wav"}, //4 
+    {"Step Three, A Doctor might use a camera to help! [Press my left paw if you want to hear more] or [my right paw for the next step ]?", 6, 7, "/medical5.wav"}, //5 
+    {"If the bump in your skin is deep pictures will be used to guide the needle, [press my left paw to hear this again] or [press my right paw for the Next Step]?", 6, 7, "/medical6.wav"}, //6 
+    {"Step Four: Sealing up!. [Press my left paw if you want to hear more] or [my right paw for the next step ]?", 8, 9, "/medical7.wav"}, //7 
+    {"The doctors might stitch the skin back together, then they will apply a band-aid to help you feel better, [[press my left paw to hear this again] or [press my right paw for the Next Step]?", 8, 9, "/ medical8.wav"}, // 8 
+    {"Last Step: Analysis [Press my left paw if you want to hear more] or [press my right paw to hear this procedure again]?", 10, 1, "/ medical9.wav"}, //9 
+    {"The sample will be sent to a lab, where experts will look for bad cancer cells. This takes a few days. [press my left paw to hear this step again] or [press my right paw to hear this procedure from the beginning]?", 10, 1,"/ medical10.wav"}, //10 
 };
 
 String messages[] = {
