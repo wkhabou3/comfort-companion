@@ -7,6 +7,7 @@
 #define WAKEUP_PIN_MASK (1ULL << GPIO_NUM_4)
 #define USE_EXT0_WAKEUP 1
 #define WAKEUP_GPIO GPIO_NUM_4
+#define BUZZ_DURATION 100
 
 #define uS_TO_S_FACTOR 1000000ULL
 #define TIME_TO_SLEEP 5
@@ -22,7 +23,8 @@ Button leftFoot = {11, false, 0};
 Button rightFoot = {12, false, 0};
 Button leftHand = {47, false, 0};
 Button rightHand = {48, false, 0};
-int motorPin = 5;
+int motor1Pin = 9;
+int motor2Pin = 10;
 const unsigned long DEBOUNCE_TIME = 250;
 
 void IRAM_ATTR isr(void* arg) {
@@ -35,13 +37,67 @@ void IRAM_ATTR isr(void* arg) {
         //setAudioAbort(true);
     }
 }
+
+void setHaptics(bool on) {
+    digitalWrite(motor1Pin, on);
+    digitalWrite(motor2Pin, on);
+}
+
+void buzzMotor() {
+    setHaptics(true);
+    delay(BUZZ_DURATION);
+    setHaptics(false);
+}
+
+void breathingExercise() {
+    Serial.println("Breathe in");
+    playWav("/test.wav"); //"BREATHE IN"
+
+    setHaptics(true);
+    delay(4000);
+    setHaptics(false);
+
+    delay(4000);
+
+    Serial.println("Breathe out");
+    playWav("/test.wav"); //"BREATHE OUT"
+
+    setHaptics(true);
+    delay(4000);
+    setHaptics(false);
+    delay(4000);
+}
+
+void heartbeatOption(int beats){
+    for (int i = 0; i < beats; i++) {
+        setHaptics(true);
+        delay(120);
+        setHaptics(false);
+        delay(80);
+        setHaptics(true);
+        delay(80);
+        setHaptics(false);
+        delay(600);
+    }
+}
 int audioOptionIndex = 0;
 bool storytelling = false;
+bool medicalStoryTime = false;
+bool breathingMode = false;
+bool heartbeatMode = false;
 bool messagesOption = false;
 VolumeLevel volume = VolumeLevel::QUIET;
 int storyIndex = 0;
+int medicalIndex = 0;
 int messageIndex = 0;
-String audioActions[] = {"Storytelling", "WhiteNoise", "Messages", "Meditation/Breathing"};
+String audioActions[] = {
+    "Storytelling", 
+    "WhiteNoise", 
+    "Messages", 
+    "Meditation/Breathing", 
+    "MedicalStory",
+    "Heartbeat"
+};
 struct StoryNode{
     String text;
     int optionA;
@@ -65,7 +121,31 @@ StoryNode storyTree[] = {
     {"Ending 13: You tried to swim across the river got chased by alligators, but you fought bravely and made it across!", 0, 0, "/test.wav"},
     {"Ending 14: You took a boat and tried to cross, but the boat sank and you had to turn back, and climb back up the cliff", 0, 0, "/test.wav"}
 };
-String messages[] = {"Hi", "Hello", "Welcome", "Greeting"};
+
+StoryNode medicalStory[] = {
+    {"Medical Story", 1, 1, "/test_stereo.wav"}, //0
+    {"Step One [More detail] or [Next Step]?", 2, 3, "/test.wav"}, //1
+    {"More detail of step one, [repeat] or [Next Step]?", 2, 3, "/test.wav"}, //2
+    {"Step Two [More detail] or [Next Step]?", 4, 5, "/test.wav"}, //3
+    {"More detail of step two, [repeat] or [Next Step]?", 4, 5, "/test.wav"}, //4
+    {"Step Three [More detail] or [Next Step]?", 6, 7, "/test.wav"}, //5
+    {"More detail of step three, [repeat] or [Next Step]?", 6, 7, "/test.wav"}, //6
+    {"Step Four [More detail] or [Next Step]?", 8, 9, "/test.wav"}, //7
+    {"More detail of step four, [repeat] or [Next Step]?", 8, 9, "/test.wav"}, // 8
+    {"Step Five [More detail] or [Next Step]?", 10, 11, "/test.wav"}, //9
+    {"More detail of step five, [repeat] or [Next Step]?", 10, 11, "/test.wav"}, //10
+    {"Step Six [More detail] or [Next Step]?", 12, 13, "/test.wav"}, //11
+    {"More detail of step six, [repeat] or [Next Step]?", 12, 13, "/test.wav"}, //12
+    {"Last Step [More detail] or [repeat]?", 14, 1, "/test.wav"}, //13
+    {"More detail of last step, [repeat] or [Next Step]?", 1, 1, "/test.wav"} //14
+};
+
+String messages[] = {
+    "Hi, from Mom!",
+    "Hello, from friends!",
+    "Thinking of you! From Grandma", 
+    "Get Well Soon! From Teachers"
+};
 
 int messageCount = sizeof(messages) / sizeof(messages[0]);
 int actionsCount = sizeof(audioActions) / sizeof(audioActions[0]);
@@ -136,7 +216,8 @@ void setup() {
     Serial.println("Files on card:");
 
     listDir(SD, "/", 0);
-    pinMode(motorPin, OUTPUT);
+    pinMode(motor1Pin, OUTPUT);
+    pinMode(motor2Pin, OUTPUT);
     pinMode(leftFoot.PIN, INPUT_PULLUP);
     pinMode(rightFoot.PIN, INPUT_PULLUP);
     pinMode(leftHand.PIN, INPUT_PULLUP);
@@ -152,9 +233,21 @@ void setup() {
     xTaskCreatePinnedToCore(audioTask, "audioTask", 4096, NULL, 1, NULL, 1);
 }
 void loop() {
+    if (breathingMode) {
+        breathingExercise();
+        if (rightFoot.pressed) {
+            breathingMode = false;
+        }
+    }
+    if (heartbeatMode) {
+        heartbeatOption(2);
+        if (rightFoot.pressed) {
+            heartbeatMode = false;
+        }
+    }
     if (leftHand.pressed) {
         leftHand.pressed = false;
-
+        buzzMotor();
         if (storytelling) {
             storyIndex = storyTree[storyIndex].optionA;
             Serial.println(storyTree[storyIndex].text);
@@ -165,10 +258,16 @@ void loop() {
             Serial.println(messages[messageIndex]);
             playWav("/test.wav");
             Serial.println("Playback finished.");
+        } else if (medicalStoryTime) {
+            medicalIndex = medicalStory[medicalIndex].optionA;
+            Serial.println(medicalStory[medicalIndex].text);
+            playWav(medicalStory[medicalIndex].audioFile);
+            Serial.println("Playback finished.");
         }
     }
     if (rightHand.pressed) {
         rightHand.pressed = false;
+        buzzMotor();
         if (storytelling){
             storyIndex = storyTree[storyIndex].optionB;
             Serial.println(storyTree[storyIndex].text);
@@ -182,10 +281,16 @@ void loop() {
             Serial.println(messages[messageIndex]);
             playWav("/test.wav");
             Serial.println("Playback finished.");
+        } else if (medicalStoryTime) {
+            medicalIndex = medicalStory[medicalIndex].optionB;
+            Serial.println(medicalStory[medicalIndex].text);
+            playWav(medicalStory[medicalIndex].audioFile);
+            Serial.println("Playback finished.");
         }
     }
     if (leftFoot.pressed) {
         leftFoot.pressed = false;
+        buzzMotor();
         Serial.print("Left Foot.    ");
         setVolume(++volume);
         
@@ -196,11 +301,16 @@ void loop() {
     }
     if (rightFoot.pressed) {
         rightFoot.pressed = false;
+        buzzMotor();
         audioOptionIndex = (audioOptionIndex + 1) % actionsCount;
         Serial.print("Right Foot.   ");
         Serial.print("Now playing: ");
         Serial.println(audioActions[audioOptionIndex]);
         storytelling = (audioOptionIndex == 0);
+        messagesOption = (audioOptionIndex == 2);
+        medicalStoryTime = (audioOptionIndex == 4);
+        breathingMode = (audioOptionIndex == 3);
+        heartbeatMode = (audioOptionIndex == 5);
         if (storytelling) {
             Serial.println(storyTree[0].text);
             storyIndex = 0;
@@ -208,9 +318,17 @@ void loop() {
             Serial.println("Playback finished.");
         } else if (audioOptionIndex == 1){
             Serial.println("play white noise audio");
+            playWav("/test.wav");
         } else if (audioOptionIndex == 3){
             Serial.println("play meditation audio");
+        } else if (audioOptionIndex == 4){
+            Serial.println("play medical walkthrough");
+            Serial.println(medicalStory[0].text);
+            medicalIndex = 0;
+            playWav(medicalStory[medicalIndex].audioFile);
+            Serial.println("Playback finished.");
+        } else if (audioOptionIndex == 5){
+            Serial.println("play heartbeat");
         }
-        messagesOption = (audioOptionIndex == 2);
     }
 }
