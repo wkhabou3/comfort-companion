@@ -19,12 +19,12 @@ struct Button {
     unsigned long lastMillis;
 };
 
-Button leftFoot = {4, false, 0};
-Button rightFoot = {0, false, 0};
-Button leftHand = {1, false, 0};
-Button rightHand = {2, false, 0};
-int motor1Pin = 5;
-int motor2Pin = 6;
+Button leftFoot = {11, false, 0};
+Button rightFoot = {12, false, 0};
+Button leftHand = {47, false, 0};
+Button rightHand = {48, false, 0};
+int motor1Pin = 9;
+int motor2Pin = 10;
 const unsigned long DEBOUNCE_TIME = 250;
 
 void IRAM_ATTR isr(void* arg) {
