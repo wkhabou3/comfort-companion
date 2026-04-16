@@ -106,6 +106,13 @@ void breathingExerciseNoBlock() {
             break;
         case EXHALE:
             if (now - breathTimer >= 4000) {
+                setHaptics(false);
+                breathTimer = now;
+                breathState = HOLD2;
+            }
+            break;
+        case HOLD2:
+            if (now - breathTimer >= 4000) {
                 breathState = IDLE;
             }
             break;
@@ -277,7 +284,6 @@ void loop() {
 
         // breathingExercise();
         if (rightFoot.pressed) {
-            rightFoot.pressed = false;
             breathingMode = false;
             breathState = IDLE;
             setHaptics(false);
