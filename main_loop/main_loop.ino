@@ -131,9 +131,9 @@ StoryNode medicalStory[] = {
     {"Step Three, A Doctor might use a camera to help! [Press my left paw if you want to hear more] or [my right paw for the next step ]?", 6, 7, "/medical5.wav"}, //5 
     {"If the bump in your skin is deep pictures will be used to guide the needle, [press my left paw to hear this again] or [press my right paw for the Next Step]?", 6, 7, "/medical6.wav"}, //6 
     {"Step Four: Sealing up!. [Press my left paw if you want to hear more] or [my right paw for the next step ]?", 8, 9, "/medical7.wav"}, //7 
-    {"The doctors might stitch the skin back together, then they will apply a band-aid to help you feel better, [[press my left paw to hear this again] or [press my right paw for the Next Step]?", 8, 9, "/ medical8.wav"}, // 8 
-    {"Last Step: Analysis [Press my left paw if you want to hear more] or [press my right paw to hear this procedure again]?", 10, 1, "/ medical9.wav"}, //9 
-    {"The sample will be sent to a lab, where experts will look for bad cancer cells. This takes a few days. [press my left paw to hear this step again] or [press my right paw to hear this procedure from the beginning]?", 10, 1,"/ medical10.wav"}, //10 
+    {"The doctors might stitch the skin back together, then they will apply a band-aid to help you feel better, [[press my left paw to hear this again] or [press my right paw for the Next Step]?", 8, 9, "/medical8.wav"}, // 8 
+    {"Last Step: Analysis [Press my left paw if you want to hear more] or [press my right paw to hear this procedure again]?", 10, 1, "/medical9.wav"}, //9 
+    {"The sample will be sent to a lab, where experts will look for bad cancer cells. This takes a few days. [press my left paw to hear this step again] or [press my right paw to hear this procedure from the beginning]?", 10, 1,"/medical10.wav"}, //10 
 };
 
 String messages[] = {

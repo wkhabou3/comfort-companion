@@ -68,7 +68,7 @@ void setup() {
   // Assign audio task to core 1
   xTaskCreatePinnedToCore(audioTask, "audioTask", 4096, NULL, 1, NULL, 1);
 
-  setVolume(VolumeLevel::LOUD);
+  setVolume(VolumeLevel::QUIET);
 
   delay(1000);
 
@@ -77,7 +77,7 @@ void setup() {
   while (isToneActive()) delay(100);
   Serial.println("Finished playing tone.");
 
-  char *fileToPlay = "/test.wav";
+  char *fileToPlay = "/medical0.wav";
   Serial.print("Playing file from SD card: ");
   Serial.println(fileToPlay);
   playWav(fileToPlay);
@@ -85,10 +85,33 @@ void setup() {
   Serial.println("Playback finished.");
 
   setVolume(VolumeLevel::MODERATE);
-
-  Serial.println("One more tone...");
+  
+  Serial.println("Playing 440Hz tone for 2000ms...");
   playTone(440, 2000);
   while (isToneActive()) delay(100);
+  Serial.println("Finished playing tone.");
+
+  fileToPlay = "/medical1.wav";
+  Serial.print("Playing file from SD card: ");
+  Serial.println(fileToPlay);
+  playWav(fileToPlay);
+  while (isWavActive()) delay(100);
+  Serial.println("Playback finished.");
+
+  setVolume(VolumeLevel::LOUD);
+
+  Serial.println("Playing 440Hz tone for 2000ms...");
+  playTone(440, 2000);
+  while (isToneActive()) delay(100);
+  Serial.println("Finished playing tone.");
+
+  fileToPlay = "/medical7.wav";
+  Serial.print("Playing file from SD card: ");
+  Serial.println(fileToPlay);
+  playWav(fileToPlay);
+  while (isWavActive()) delay(100);
+  Serial.println("Playback finished.");
+
   Serial.println("All tests passed!\n");
 }
 
