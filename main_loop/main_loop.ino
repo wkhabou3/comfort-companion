@@ -18,7 +18,13 @@ struct Button {
     bool pressed;
     unsigned long lastMillis;
 };
-
+enum BreathState {
+    IDLE,
+    INHALE,
+    HOLD1,
+    EXHALE,
+    HOLD2
+};
 Button leftFoot = {11, false, 0};
 Button rightFoot = {12, false, 0};
 Button leftHand = {47, false, 0};
@@ -68,6 +74,40 @@ void breathingExercise() {
     delay(4000);
 }
 
+void breathingExerciseNoBlock() {
+    unsigned long now = millis();
+
+    switch(breathState) {
+        case IDLE:
+            Serial.println("Breathe In");
+            playWav("/test.wav");
+            setHaptics(true);
+            breathTimer = now;
+            breathState = INHALE;
+            break;
+        case INHALE:
+            if (now - breathTimer >= 4000) {
+                setHaptics(false);
+                breathTimer = now;
+                breathState = HOLD1;
+            }
+            break;
+        case HOLD1:
+            if (now - breathTimer >= 4000) {
+                Serial.println("Breath out");
+                playWav("/test.wav");
+                setHaptics(true);
+                breathTimer = now;
+                breathState = EXHALE;
+            }
+            break;
+        case EXHALE:
+            if (now - breathTimer >= 4000) {
+                breathState = IDLE;
+            }
+            break;
+    }
+}
 void heartbeatOption(int beats){
     for (int i = 0; i < beats; i++) {
         setHaptics(true);
@@ -230,9 +270,14 @@ void setup() {
 }
 void loop() {
     if (breathingMode) {
-        breathingExercise();
+        breathingExerciseNoBlock();
+
+        // breathingExercise();
         if (rightFoot.pressed) {
+            rightFoot.pressed = false;
             breathingMode = false;
+            breathingState = IDLE;
+            setHaptics(false);
         }
     }
     if (heartbeatMode) {
