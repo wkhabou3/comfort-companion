@@ -25,6 +25,9 @@ enum BreathState {
     EXHALE,
     HOLD2
 };
+
+BreathState breathState = IDLE;
+unsigned long breathTimer = 0;
 Button leftFoot = {11, false, 0};
 Button rightFoot = {12, false, 0};
 Button leftHand = {47, false, 0};
@@ -276,7 +279,7 @@ void loop() {
         if (rightFoot.pressed) {
             rightFoot.pressed = false;
             breathingMode = false;
-            breathingState = IDLE;
+            breathState = IDLE;
             setHaptics(false);
         }
     }
