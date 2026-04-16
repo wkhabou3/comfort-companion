@@ -34,7 +34,7 @@ Button leftHand = {47, false, 0};
 Button rightHand = {48, false, 0};
 int motor1Pin = 9;
 int motor2Pin = 10;
-const unsigned long DEBOUNCE_TIME = 250;
+const unsigned long DEBOUNCE_TIME = 300;
 
 void IRAM_ATTR isr(void* arg) {
     
