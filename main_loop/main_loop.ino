@@ -1,4 +1,7 @@
 #include <Arduino.h>
+#include <cstring>
+#include <string>
+#include <unordered_map>
 #include "driver/rtc_io.h"
 #include "audio.h"
 
@@ -36,6 +39,8 @@ int motor1Pin = 9;
 int motor2Pin = 10;
 const unsigned long DEBOUNCE_TIME = 300;
 
+std::unordered_map<std::string, float> fileGains;
+
 void IRAM_ATTR isr(void* arg) {
     
     Button* b = static_cast<Button*>(arg);
@@ -60,7 +65,7 @@ void buzzMotor() {
 
 void breathingExercise() {
     Serial.println("Breathe in");
-    playWav("/test.wav"); //"BREATHE IN"
+    playWav("/test.wav", fileGains["/test.wav"]); //"BREATHE IN"
 
     setHaptics(true);
     delay(4000);
@@ -69,7 +74,7 @@ void breathingExercise() {
     delay(4000);
 
     Serial.println("Breathe out");
-    playWav("/test.wav"); //"BREATHE OUT"
+    playWav("/test.wav", fileGains["/test.wav"]); //"BREATHE OUT"
 
     setHaptics(true);
     delay(4000);
@@ -83,7 +88,7 @@ void breathingExerciseNoBlock() {
     switch(breathState) {
         case IDLE:
             Serial.println("Breathe In");
-            playWav("/test.wav");
+            playWav("/test.wav", fileGains["/test.wav"]);
             setHaptics(true);
             breathTimer = now;
             breathState = INHALE;
@@ -98,7 +103,7 @@ void breathingExerciseNoBlock() {
         case HOLD1:
             if (now - breathTimer >= 4000) {
                 Serial.println("Breath out");
-                playWav("/test.wav");
+                playWav("/test.wav", fileGains["/test.wav"]);
                 setHaptics(true);
                 breathTimer = now;
                 breathState = EXHALE;
@@ -232,6 +237,22 @@ void listDir(fs::FS &fs, const char * dirname, uint8_t levels) {
       Serial.print(file.name());
       Serial.print("  SIZE: ");
       Serial.println(file.size());
+      int16_t buffer[1024];
+      int maxAmplitude = 0;
+      char* ptr = (char*) malloc(strlen(dirname) + strlen(file.name()) + 1);
+      strcpy(ptr, dirname);
+      strcat(ptr, file.name());
+      std::string fullPath(ptr);
+      free(ptr);
+      while (file.available()) {
+        int bytesToRead = min((int) file.available(), (int) sizeof(buffer));
+        int bytesRead = file.read((uint8_t*) buffer, bytesToRead);
+        for (int i = 0; i < sizeof(buffer); ++i) {
+            if (abs(buffer[i]) > maxAmplitude)   maxAmplitude = buffer[i];
+        }
+      }
+      float gain = 32768.0 / maxAmplitude;
+      fileGains[fullPath] = gain;
     }
     file = root.openNextFile();
   }
@@ -301,17 +322,19 @@ void loop() {
         if (storytelling) {
             storyIndex = storyTree[storyIndex].optionA;
             Serial.println(storyTree[storyIndex].text);
-            playWav(storyTree[storyIndex].audioFile);
+            std::string nextFile(storyTree[storyIndex].audioFile);
+            playWav(nextFile.c_str(), fileGains[nextFile]);
             Serial.println("Playback finished.");
         } else if (messagesOption){
             messageIndex = (messageIndex + 1) % messageCount;
             Serial.println(messages[messageIndex]);
-            playWav("/test.wav");
+            playWav("/test.wav", fileGains["/test.wav"]);
             Serial.println("Playback finished.");
         } else if (medicalStoryTime) {
             medicalIndex = medicalStory[medicalIndex].optionA;
             Serial.println(medicalStory[medicalIndex].text);
-            playWav(medicalStory[medicalIndex].audioFile);
+            std::string nextFile(medicalStory[medicalIndex].audioFile);
+            playWav(nextFile.c_str(), fileGains[nextFile]);
             Serial.println("Playback finished.");
         }
     }
@@ -321,7 +344,8 @@ void loop() {
         if (storytelling){
             storyIndex = storyTree[storyIndex].optionB;
             Serial.println(storyTree[storyIndex].text);
-            playWav(storyTree[storyIndex].audioFile);
+            std::string nextFile(storyTree[storyIndex].audioFile);
+            playWav(nextFile.c_str(), fileGains[nextFile]);
             Serial.println("Playback finished.");
         } else if (messagesOption){
             messageIndex--;
@@ -329,12 +353,13 @@ void loop() {
                 messageIndex = messageCount - 1;
             }
             Serial.println(messages[messageIndex]);
-            playWav("/test.wav");
+            playWav("/test.wav", fileGains["/test.wav"]);
             Serial.println("Playback finished.");
         } else if (medicalStoryTime) {
             medicalIndex = medicalStory[medicalIndex].optionB;
             Serial.println(medicalStory[medicalIndex].text);
-            playWav(medicalStory[medicalIndex].audioFile);
+            std::string nextFile(medicalStory[medicalIndex].audioFile);
+            playWav(nextFile.c_str(), fileGains[nextFile]);
             Serial.println("Playback finished.");
         }
     }
@@ -364,18 +389,20 @@ void loop() {
         if (storytelling) {
             Serial.println(storyTree[0].text);
             storyIndex = 0;
-            playWav(storyTree[storyIndex].audioFile);
+            std::string firstFile(storyTree[storyIndex].audioFile);
+            playWav(firstFile.c_str(), fileGains[firstFile]);
             Serial.println("Playback finished.");
         } else if (audioOptionIndex == 1){
             Serial.println("play white noise audio");
-            playWav("/test.wav");
+            playWav("/test.wav", fileGains["/test.wav"]);
         } else if (audioOptionIndex == 3){
             Serial.println("play meditation audio");
         } else if (audioOptionIndex == 4){
             Serial.println("play medical walkthrough");
             Serial.println(medicalStory[0].text);
             medicalIndex = 0;
-            playWav(medicalStory[medicalIndex].audioFile);
+            std::string firstFile(medicalStory[medicalIndex].audioFile);
+            playWav(firstFile.c_str(), fileGains[firstFile]);
             Serial.println("Playback finished.");
         } else if (audioOptionIndex == 5){
             Serial.println("play heartbeat");

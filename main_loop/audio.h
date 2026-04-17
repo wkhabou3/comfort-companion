@@ -116,7 +116,7 @@ Reads a WAV file from the microSD card and plays it on the speaker.
 Params:
 - filename: full path to WAV file on microSD card
 */
-void playWav(const char *filename);
+void playWav(const char *filename, int gain);
 
 /*
 Main audio loop. Should run continuously in parallel to other tasks.
