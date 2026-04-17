@@ -15,8 +15,8 @@
 RTC_DATA_ATTR int bootCount = 0;
 struct Button {
     const uint8_t PIN;
-    bool pressed;
-    unsigned long lastMillis;
+    volatile bool pressed;
+    volatile unsigned long lastMillis;
 };
 enum BreathState {
     IDLE,
@@ -25,6 +25,17 @@ enum BreathState {
     EXHALE,
     HOLD2
 };
+
+enum HeartbeatState {
+    HB_IDLE,
+    HB_BEAT1_ON,
+    HB_BEAT1_OFF,
+    HB_BEAT2_ON,
+    HB_BEAT2_OFF,
+};
+
+HeartbeatState heartbeatState = HB_IDLE;
+unsigned long heartbeatTimer = 0;
 
 BreathState breathState = IDLE;
 unsigned long breathTimer = 0;
@@ -82,24 +93,29 @@ void breathingExerciseNoBlock() {
 
     switch(breathState) {
         case IDLE:
+            setHaptics(true);
             Serial.println("Breathe In");
             playWav("/test.wav");
-            setHaptics(true);
+            // setHaptics(true);
             breathTimer = now;
             breathState = INHALE;
             break;
         case INHALE:
             if (now - breathTimer >= 4000) {
                 setHaptics(false);
+                Serial.println("Hold");
+                playWav("/test.wav");
+                // setHaptics(false);
                 breathTimer = now;
                 breathState = HOLD1;
             }
             break;
         case HOLD1:
             if (now - breathTimer >= 4000) {
+                setHaptics(true);
                 Serial.println("Breath out");
                 playWav("/test.wav");
-                setHaptics(true);
+                // setHaptics(true);
                 breathTimer = now;
                 breathState = EXHALE;
             }
@@ -107,6 +123,8 @@ void breathingExerciseNoBlock() {
         case EXHALE:
             if (now - breathTimer >= 4000) {
                 setHaptics(false);
+                Serial.println("Hold");
+                playWav("/test.wav");
                 breathTimer = now;
                 breathState = HOLD2;
             }
@@ -130,6 +148,46 @@ void heartbeatOption(int beats){
         delay(600);
     }
 }
+
+void heartbeatNonBlocking(){
+    unsigned long now = millis();
+    switch (heartbeatState) {
+        case HB_IDLE:
+            setHaptics(true);
+            heartbeatTimer = now;
+            heartbeatState = HB_BEAT1_ON;
+            break;
+        case HB_BEAT1_ON:
+            if (now - heartbeatTimer >= 120) {
+                setHaptics(false);
+                heartbeatTimer = now;
+                heartbeatState = HB_BEAT1_OFF;
+            }
+            break;
+        case HB_BEAT1_OFF:
+            if (now - heartbeatTimer >= 80) {
+                setHaptics(true);
+                heartbeatTimer = now;
+                heartbeatState = HB_BEAT2_ON;
+            }
+            break;
+        case HB_BEAT2_ON:
+            if (now - heartbeatTimer >= 80) {
+                setHaptics(false);
+                heartbeatTimer = now;
+                heartbeatState = HB_BEAT2_OFF;
+            }
+            break;
+        case HB_BEAT2_OFF:
+            if (now - heartbeatTimer >= 600) {
+                setHaptics(true);
+                heartbeatTimer = now;
+                heartbeatState = HB_BEAT1_ON;
+            }
+            break;
+    }
+}
+
 int audioOptionIndex = 0;
 bool storytelling = false;
 bool medicalStoryTime = false;
@@ -290,9 +348,13 @@ void loop() {
         }
     }
     if (heartbeatMode) {
-        heartbeatOption(2);
+        heartbeatNonBlocking();
+        
+        // heartbeatOption(2));
         if (rightFoot.pressed) {
             heartbeatMode = false;
+            heartbeatState = HB_IDLE;
+            setHaptics(false);
         }
     }
     if (leftHand.pressed) {
