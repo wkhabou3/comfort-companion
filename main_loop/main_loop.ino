@@ -109,7 +109,7 @@ void breathingExerciseNoBlock() {
             if (now - breathTimer >= 4000) {
                 setHaptics(false);
                 Serial.println("Hold");
-                playWav("/test.wav");
+                playWav("/test.wav", fileGains["/test.wav"]);
                 // setHaptics(false);
                 breathTimer = now;
                 breathState = HOLD1;
@@ -129,7 +129,7 @@ void breathingExerciseNoBlock() {
             if (now - breathTimer >= 4000) {
                 setHaptics(false);
                 Serial.println("Hold");
-                playWav("/test.wav");
+                playWav("/test.wav", fileGains["/test.wav"]);
                 breathTimer = now;
                 breathState = HOLD2;
             }
@@ -284,7 +284,28 @@ void listDir(fs::FS &fs, const char * dirname, uint8_t levels) {
     return;
   }
 
+  File config = SD.open("/file_gains/values.txt", FILE_READ);
+  while (config.available()) {
+    char buffer[256];
+    size_t len = config.readBytesUntil('\n', buffer, sizeof(buffer) - 1);
+    buffer[len] = '\0';
+    std::string line(buffer);
+    std::size_t delimiter = line.find("\t");
+    if (delimiter == std::string::npos) {
+        continue;
+    }
+    std::string currFile(line.substr(0, delimiter));
+    float filegain = std::stof(line.substr(delimiter + 1));
+    fileGains.insert({currFile, filegain});
+  }
+
+  config.close();
+
   File file = root.openNextFile();
+
+  // Format for each line in config file:
+  // {FULLPATH (include / at beginning)}\t{GAIN}\n
+  config = SD.open("/file_gains/values.txt", FILE_APPEND);
 
   while (file) {
     if (file.isDirectory()) {
@@ -302,6 +323,12 @@ void listDir(fs::FS &fs, const char * dirname, uint8_t levels) {
       strcat(ptr, file.name());
       std::string fullPath(ptr);
       free(ptr);
+      if (auto search = fileGains.find(fullPath); search != fileGains.end()) {
+        Serial.println("This file found in config.");
+        file = root.openNextFile();
+        continue;
+      }
+      Serial.println("Now adding file to config...");
       file.seek(sizeof(WAVHeader));
       while (file.available()) {
         int bytesToRead = min((int) file.available(), (int) sizeof(buffer));
@@ -315,9 +342,11 @@ void listDir(fs::FS &fs, const char * dirname, uint8_t levels) {
       float gain = 32768.0 / maxAmplitude;
       fileGains[fullPath] = gain;
       Serial.printf("Gain: %f\n", gain);
+      config.print((fullPath + "\t" + std::to_string(gain) + "\n").c_str());
     }
     file = root.openNextFile();
   }
+  config.close();
 }
 
 void setup() {
@@ -374,7 +403,7 @@ void loop() {
     }
     if (leftHand.pressed) {
         leftHand.pressed = false;
-        delay(10);
+        delay(5);
         if (digitalRead(leftHand.PIN) != LOW) {
             return;
         }
@@ -400,7 +429,7 @@ void loop() {
     }
     if (rightHand.pressed) {
         rightHand.pressed = false;
-        delay(10);
+        delay(5);
         if (digitalRead(rightHand.PIN) != LOW) {
             return;
         }
@@ -429,7 +458,7 @@ void loop() {
     }
     if (leftFoot.pressed) {
         leftFoot.pressed = false;
-        delay(50);
+        delay(5);
         if (digitalRead(leftFoot.PIN) != LOW) {
             return;
         }
@@ -443,7 +472,7 @@ void loop() {
     }
     if (rightFoot.pressed) {
         rightFoot.pressed = false;
-        delay(10);
+        delay(5);
         if (digitalRead(rightFoot.PIN) != LOW) {
             return;
         }
