@@ -341,24 +341,18 @@ void loop() {
         breathingExerciseNoBlock();
 
         // breathingExercise();
-        if (rightFoot.pressed) {
-            breathingMode = false;
-            breathState = IDLE;
-            setHaptics(false);
-        }
     }
     if (heartbeatMode) {
         heartbeatNonBlocking();
         
         // heartbeatOption(2));
-        if (rightFoot.pressed) {
-            heartbeatMode = false;
-            heartbeatState = HB_IDLE;
-            setHaptics(false);
-        }
     }
     if (leftHand.pressed) {
         leftHand.pressed = false;
+        delay(10);
+        if (digitalRead(leftHand.PIN) != LOW) {
+            return;
+        }
         buzzMotor();
         if (storytelling) {
             storyIndex = storyTree[storyIndex].optionA;
@@ -379,6 +373,10 @@ void loop() {
     }
     if (rightHand.pressed) {
         rightHand.pressed = false;
+        delay(10);
+        if (digitalRead(rightHand.PIN) != LOW) {
+            return;
+        }
         buzzMotor();
         if (storytelling){
             storyIndex = storyTree[storyIndex].optionB;
@@ -402,18 +400,35 @@ void loop() {
     }
     if (leftFoot.pressed) {
         leftFoot.pressed = false;
-        buzzMotor();
+        delay(50);
+        if (digitalRead(leftFoot.PIN) != LOW) {
+            return;
+        }
+        if (!breathingMode) buzzMotor();
         Serial.print("Left Foot.    ");
         setVolume(++volume);
         
         Serial.printf("Volume Level: %d\n", static_cast<int>(volume));
-        delay(50);
         // Play a short beep to confirm volume change (if not playing other audio)
         if (!isToneActive() && !isWavActive()) playTone(440.0, 200);
     }
     if (rightFoot.pressed) {
         rightFoot.pressed = false;
+        delay(10);
+        if (digitalRead(rightFoot.PIN) != LOW) {
+            return;
+        }
         buzzMotor();
+
+        if (breathingMode) {
+            breathState = IDLE;
+            setHaptics(false);
+        }
+        if (heartbeatMode) {
+            heartbeatState = HB_IDLE;
+            setHaptics(false);
+        }
+
         audioOptionIndex = (audioOptionIndex + 1) % actionsCount;
         Serial.print("Right Foot.   ");
         Serial.print("Now playing: ");
