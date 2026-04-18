@@ -244,15 +244,19 @@ void listDir(fs::FS &fs, const char * dirname, uint8_t levels) {
       strcat(ptr, file.name());
       std::string fullPath(ptr);
       free(ptr);
+      file.seek(sizeof(WAVHeader));
       while (file.available()) {
         int bytesToRead = min((int) file.available(), (int) sizeof(buffer));
-        int bytesRead = file.read((uint8_t*) buffer, bytesToRead);
-        for (int i = 0; i < sizeof(buffer); ++i) {
-            if (abs(buffer[i]) > maxAmplitude)   maxAmplitude = buffer[i];
+        int samples = file.read((uint8_t*) buffer, bytesToRead) / sizeof(int16_t);
+        for (int i = 0; i < samples; ++i) {
+          if (abs(buffer[i]) > maxAmplitude) {
+            maxAmplitude = abs(buffer[i]);
+          }
         }
       }
       float gain = 32768.0 / maxAmplitude;
       fileGains[fullPath] = gain;
+      Serial.printf("Gain: %f\n", gain);
     }
     file = root.openNextFile();
   }
