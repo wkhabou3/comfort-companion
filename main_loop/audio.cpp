@@ -20,6 +20,7 @@ int16_t buffer[DMA_BUF_LEN * 2];
 // Tone volume should be between 0 and 1
 float toneVolume = 0.05;
 float playbackVolume = 0.2;
+float currFileGain = 1;
 
 // Shared control variables
 uint32_t currentSampleRate = 0;
@@ -165,11 +166,12 @@ void playTone(float frequency, int duration) {
   toneSamplesRemaining = currentSampleRate * duration / 1000;
 }
 
-void playWav(const char *filename) {
+void playWav(const char *filename, int gain) {
   // Copy filename to nextFilename, then set request flag for main audio task
   strncpy(nextFilename, filename, sizeof(nextFilename));
   wavStartRequested = true;
   toneActive = false;
+  currFileGain = gain;
   delay(100);
 }
 
@@ -268,7 +270,7 @@ void audioTask(void *param) {
         // buffer refilled or non-empty: write next sample to buffer
         if (wavBytesRemaining > 0) {
           int16_t wavSample = wavBuffer[wavReadIndex++];
-          wavSample = (int16_t) (wavSample * currentPlaybackVolume);
+          wavSample = (int16_t) (wavSample * currentPlaybackVolume * currFileGain);
           sample1 += wavSample;
           sample2 += wavSample;
           wavBytesRemaining--;
@@ -276,7 +278,7 @@ void audioTask(void *param) {
           // If stereo, read another sample
           if (currentChannels > 1) {
             wavSample = wavBuffer[wavReadIndex++];
-            wavSample = (int16_t) (wavSample * currentPlaybackVolume);
+            wavSample = (int16_t) (wavSample * currentPlaybackVolume * currFileGain);
             sample2 = wavSample;
             wavBytesRemaining--;
           }
