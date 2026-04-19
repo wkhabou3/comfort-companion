@@ -468,7 +468,7 @@ void loop() {
         
         Serial.printf("Volume Level: %d\n", static_cast<int>(volume));
         // Play a short beep to confirm volume change (if not playing other audio)
-        if (!isToneActive() && !isWavActive()) playTone(440.0, 200);
+        if (!isToneActive() && !isWavActive() && !isWhiteNoiseActive()) playTone(440.0, 200);
     }
     if (rightFoot.pressed) {
         rightFoot.pressed = false;
@@ -504,6 +504,8 @@ void loop() {
             Serial.println("Playback finished.");
         } else if (audioOptionIndex == 1){
             Serial.println("play white noise audio");
+            playWhiteNoise();
+        } else if (audioOptionIndex == 2) {
             playWav("/test.wav", fileGains["/test.wav"]);
         } else if (audioOptionIndex == 3){
             Serial.println("play meditation audio");
@@ -516,6 +518,7 @@ void loop() {
             Serial.println("Playback finished.");
         } else if (audioOptionIndex == 5){
             Serial.println("play heartbeat");
+            playWav("/test.wav", fileGains["/test.wav"]);
         }
     }
 }

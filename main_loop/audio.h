@@ -9,6 +9,7 @@ Header file for audio functionality, including pinouts, constants, and function 
 #include <SPI.h>
 #include <SD.h>
 #include <math.h>
+#include <random>
 #include "driver/i2s_std.h"
 
 // microSD breakout pinout
@@ -69,6 +70,9 @@ bool isToneActive();
 // Return wavActive; can be used for iteration until wav playback finishes
 bool isWavActive();
 
+// Return whiteNoiseActive
+bool isWhiteNoiseActive();
+
 /*
 Access and set playback volume.
 
@@ -117,6 +121,11 @@ Params:
 - filename: full path to WAV file on microSD card
 */
 void playWav(const char *filename, int gain);
+
+/*
+Sends white (random) noise to the speaker.
+*/
+void playWhiteNoise();
 
 /*
 Main audio loop. Should run continuously in parallel to other tasks.

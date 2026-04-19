@@ -18,8 +18,8 @@ int16_t buffer[DMA_BUF_LEN * 2];
 
 // Separate volume variables for pure sine tones and stored audio playback
 // Tone volume should be between 0 and 1
-float toneVolume = 0.05;
-float playbackVolume = 0.2;
+float toneVolume = 0.083;
+float playbackVolume = 0.25;
 float currFileGain = 1;
 
 // Shared control variables
@@ -27,6 +27,7 @@ uint32_t currentSampleRate = 0;
 uint16_t currentChannels = 0;
 volatile bool toneActive = false;
 volatile bool wavActive  = false;
+volatile bool whiteNoiseActive = false;
 float currentFrequency   = 440.0;
 uint32_t toneSamplesRemaining = 0;
 float phase = 0.0;
@@ -47,6 +48,11 @@ int16_t wavBuffer[DMA_BUF_LEN * 2];
 
 // Allocate memory for sine lookup table
 int16_t sinTable[SIN_TABLE_SIZE];
+
+// Random value generator for white noise
+std::random_device rd; 
+std::mt19937 gen(rd()); 
+std::uniform_real_distribution<float> dis(-1.f, 1.f);
 
 VolumeLevel& operator++(VolumeLevel& v) {
   v = static_cast<VolumeLevel>((static_cast<int>(v) + 1) % static_cast<int>(VolumeLevel::COUNT));
@@ -70,6 +76,10 @@ bool isToneActive() {
 
 bool isWavActive() {
   return wavActive;
+}
+
+bool isWhiteNoiseActive() {
+  return whiteNoiseActive;
 }
 
 void setVolume(VolumeLevel volume) {
@@ -159,6 +169,7 @@ void setupI2S(uint32_t sampleRate, uint16_t numChannels) {
 void playTone(float frequency, int duration) {
   toneActive = true;
   wavActive = false;
+  whiteNoiseActive = false;
 
   // Set frequency, step, and total number of samples
   currentFrequency = frequency;
@@ -171,8 +182,15 @@ void playWav(const char *filename, int gain) {
   strncpy(nextFilename, filename, sizeof(nextFilename));
   wavStartRequested = true;
   toneActive = false;
+  whiteNoiseActive = false;
   currFileGain = gain;
   delay(100);
+}
+
+void playWhiteNoise() {
+  toneActive = false;
+  wavActive = false;
+  whiteNoiseActive = true;
 }
 
 void audioTask(void *param) {
@@ -182,7 +200,7 @@ void audioTask(void *param) {
   float currentToneVolume = toneVolume;
   float currentPlaybackVolume = playbackVolume;
   // volume ramp speeds
-  const float toneVolumeStep = 0.005f;
+  const float toneVolumeStep = 0.1f;
   const float wavVolumeStep = 0.0001f;
 
   while (true) {
@@ -255,6 +273,14 @@ void audioTask(void *param) {
 
         toneSamplesRemaining--;
         if (toneSamplesRemaining == 0) toneActive = false;
+      }
+
+      // White noise machine
+      if (whiteNoiseActive) {
+        // use fraction of current tone volume
+        int16_t randomSample = (dis(gen) + dis(gen) + dis(gen)) / 3 * 32768 * currentToneVolume / 3;
+        sample1 += randomSample;
+        sample2 += randomSample;
       }
 
       // WAV playback
