@@ -76,7 +76,7 @@ void buzzMotor() {
 
 void breathingExercise() {
     Serial.println("Breathe in");
-    playWav("/test.wav", fileGains["/test.wav"]); //"BREATHE IN"
+    playWav("/breathein.wav", fileGains["/breathein.wav"]); //"BREATHE IN"
 
     setHaptics(true);
     delay(4000);
@@ -85,7 +85,7 @@ void breathingExercise() {
     delay(4000);
 
     Serial.println("Breathe out");
-    playWav("/test.wav", fileGains["/test.wav"]); //"BREATHE OUT"
+    playWav("/breatheout.wav", fileGains["/breatheout.wav"]); //"BREATHE OUT"
 
     setHaptics(true);
     delay(4000);
@@ -100,7 +100,7 @@ void breathingExerciseNoBlock() {
         case IDLE:
             setHaptics(true);
             Serial.println("Breathe In");
-            playWav("/test.wav", fileGains["/test.wav"]);
+            playWav("/breathein.wav", fileGains["/breathein.wav"]);
             setHaptics(true);
             breathTimer = now;
             breathState = INHALE;
@@ -109,7 +109,7 @@ void breathingExerciseNoBlock() {
             if (now - breathTimer >= 4000) {
                 setHaptics(false);
                 Serial.println("Hold");
-                playWav("/test.wav", fileGains["/test.wav"]);
+                playWav("/holdbreath.wav", fileGains["/holdbreath.wav"]);
                 // setHaptics(false);
                 breathTimer = now;
                 breathState = HOLD1;
@@ -119,7 +119,7 @@ void breathingExerciseNoBlock() {
             if (now - breathTimer >= 4000) {
                 setHaptics(true);
                 Serial.println("Breath out");
-                playWav("/test.wav", fileGains["/test.wav"]);
+                playWav("/breatheout.wav", fileGains["/breatheout.wav"]);
                 setHaptics(true);
                 breathTimer = now;
                 breathState = EXHALE;
@@ -129,7 +129,7 @@ void breathingExerciseNoBlock() {
             if (now - breathTimer >= 4000) {
                 setHaptics(false);
                 Serial.println("Hold");
-                playWav("/test.wav", fileGains["/test.wav"]);
+                playWav("/holdbreath.wav", fileGains["/holdbreath.wav"]);
                 breathTimer = now;
                 breathState = HOLD2;
             }
@@ -249,11 +249,9 @@ StoryNode medicalStory[] = {
     {"The sample will be sent to a lab, where experts will look for bad cancer cells. This takes a few days. [press my left paw to hear this step again] or [press my right paw to hear this procedure from the beginning]?", 10, 1,"/medical10.wav"}, //10 
 };
 
-String messages[] = {
-    "Hi, from Mom!",
-    "Hello, from friends!",
-    "Thinking of you! From Grandma", 
-    "Get Well Soon! From Teachers"
+const char* messages[] = {
+    "/message-from-mum.wav",
+    "/message-from-teacher.wav"
 };
 
 int messageCount = sizeof(messages) / sizeof(messages[0]);
@@ -416,8 +414,8 @@ void loop() {
             Serial.println("Playback finished.");
         } else if (messagesOption){
             messageIndex = (messageIndex + 1) % messageCount;
-            Serial.println(messages[messageIndex]);
-            playWav("/test.wav", fileGains["/test.wav"]);
+            const char* fileToPlay = messages[messageIndex];
+            playWav(fileToPlay, fileGains[fileToPlay]);
             Serial.println("Playback finished.");
         } else if (medicalStoryTime) {
             medicalIndex = medicalStory[medicalIndex].optionA;
@@ -445,8 +443,8 @@ void loop() {
             if (messageIndex < 0){
                 messageIndex = messageCount - 1;
             }
-            Serial.println(messages[messageIndex]);
-            playWav("/test.wav", fileGains["/test.wav"]);
+            const char* fileToPlay = messages[messageIndex];
+            playWav(fileToPlay, fileGains[fileToPlay]);
             Serial.println("Playback finished.");
         } else if (medicalStoryTime) {
             medicalIndex = medicalStory[medicalIndex].optionB;
@@ -506,7 +504,7 @@ void loop() {
             Serial.println("play white noise audio");
             playWhiteNoise();
         } else if (audioOptionIndex == 2) {
-            playWav("/test.wav", fileGains["/test.wav"]);
+            playWav("/messages.wav", fileGains["/messages.wav"]);
         } else if (audioOptionIndex == 3){
             Serial.println("play meditation audio");
         } else if (audioOptionIndex == 4){
@@ -518,7 +516,7 @@ void loop() {
             Serial.println("Playback finished.");
         } else if (audioOptionIndex == 5){
             Serial.println("play heartbeat");
-            playWav("/test.wav", fileGains["/test.wav"]);
+            playWav("/heartbeatmode.wav", fileGains["/heartbeatmode.wav"]);
         }
     }
 }
