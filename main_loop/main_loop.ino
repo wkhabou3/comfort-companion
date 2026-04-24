@@ -195,10 +195,12 @@ void heartbeatNonBlocking(){
 
 int audioOptionIndex = 0;
 bool storytelling = false;
+bool whiteNoise = false;
 bool medicalStoryTime = false;
 bool breathingMode = false;
 bool heartbeatMode = false;
 bool messagesOption = false;
+bool proceedFlag = false;
 VolumeLevel volume = VolumeLevel::QUIET;
 int storyIndex = 0;
 int medicalIndex = 0;
@@ -389,13 +391,23 @@ void setup() {
     xTaskCreatePinnedToCore(audioTask, "audioTask", 4096, NULL, 1, NULL, 1);
 }
 void loop() {
+    if (whiteNoise) {
+        if (proceedFlag) {
+            playWhiteNoise();
+            proceedFlag = false;
+        }
+    }
     if (breathingMode) {
-        breathingExerciseNoBlock();
+        if (proceedFlag) {
+            breathingExerciseNoBlock();
+        }
 
         // breathingExercise();
     }
     if (heartbeatMode) {
-        heartbeatNonBlocking();
+        if (proceedFlag) {
+            heartbeatNonBlocking();
+        }
         
         // heartbeatOption(2));
     }
@@ -405,6 +417,7 @@ void loop() {
         if (digitalRead(leftHand.PIN) != LOW) {
             return;
         }
+        proceedFlag = true;
         buzzMotor();
         if (storytelling) {
             storyIndex = storyTree[storyIndex].optionA;
@@ -431,6 +444,7 @@ void loop() {
         if (digitalRead(rightHand.PIN) != LOW) {
             return;
         }
+        proceedFlag = true;
         buzzMotor();
         if (storytelling){
             storyIndex = storyTree[storyIndex].optionB;
@@ -474,6 +488,7 @@ void loop() {
         if (digitalRead(rightFoot.PIN) != LOW) {
             return;
         }
+        proceedFlag = false;
         buzzMotor();
 
         if (breathingMode) {
@@ -490,6 +505,7 @@ void loop() {
         Serial.print("Now playing: ");
         Serial.println(audioActions[audioOptionIndex]);
         storytelling = (audioOptionIndex == 0);
+        whiteNoise = (audioOptionIndex == 1);
         messagesOption = (audioOptionIndex == 2);
         medicalStoryTime = (audioOptionIndex == 4);
         breathingMode = (audioOptionIndex == 3);
@@ -500,13 +516,14 @@ void loop() {
             std::string firstFile(storyTree[storyIndex].audioFile);
             playWav(firstFile.c_str(), fileGains[firstFile]);
             Serial.println("Playback finished.");
-        } else if (audioOptionIndex == 1){
+        } else if (audioOptionIndex == 1) {
             Serial.println("play white noise audio");
-            playWhiteNoise();
+            playWav("/whitenoise.wav", fileGains["/whitenoise.wav"]);
         } else if (audioOptionIndex == 2) {
             playWav("/messages.wav", fileGains["/messages.wav"]);
         } else if (audioOptionIndex == 3){
             Serial.println("play meditation audio");
+            playWav("/breathing.wav", fileGains["/breathing.wav"]);
         } else if (audioOptionIndex == 4){
             Serial.println("play medical walkthrough");
             Serial.println(medicalStory[0].text);
@@ -516,7 +533,7 @@ void loop() {
             Serial.println("Playback finished.");
         } else if (audioOptionIndex == 5){
             Serial.println("play heartbeat");
-            playWav("/heartbeatmode.wav", fileGains["/heartbeatmode.wav"]);
+            playWav("/heartbeat.wav", fileGains["/heartbeat.wav"]);
         }
     }
 }
